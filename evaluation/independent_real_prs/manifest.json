@@ -1,0 +1,393 @@
+{
+  "schema_version": 1,
+  "label_revision": 1,
+  "role": "held-out candidate; no model runs before freeze",
+  "repositories": {
+    "click": {
+      "name": "pallets/click",
+      "url": "https://github.com/pallets/click.git",
+      "source_module": "click",
+      "source_root": "src",
+      "python": "3.12.13",
+      "dependencies": ["click==8.0.1"]
+    },
+    "flask": {
+      "name": "pallets/flask",
+      "url": "https://github.com/pallets/flask.git",
+      "source_module": "flask",
+      "source_root": "src",
+      "python": "3.12.13",
+      "dependencies": ["Flask==2.3.2", "Werkzeug==2.3.5", "blinker==1.9.0", "click==8.5.0", "itsdangerous==2.2.0", "Jinja2==3.1.6", "MarkupSafe==3.0.3"]
+    },
+    "requests": {
+      "name": "psf/requests",
+      "url": "https://github.com/psf/requests.git",
+      "source_module": "requests",
+      "source_root": ".",
+      "python": "3.12.13",
+      "dependencies": ["requests==2.26.0", "chardet==4.0.0", "certifi==2026.7.22", "charset-normalizer==2.0.12", "idna==3.20", "urllib3==1.26.20"]
+    },
+    "requests-modern": {
+      "name": "psf/requests",
+      "url": "https://github.com/psf/requests.git",
+      "source_module": "requests",
+      "source_root": "src",
+      "python": "3.12.13",
+      "dependencies": ["requests==2.34.0", "certifi==2026.7.22", "charset-normalizer==3.4.7", "idna==3.13", "urllib3==2.5.0", "typing-extensions==4.15.0"]
+    },
+    "werkzeug": {
+      "name": "pallets/werkzeug",
+      "url": "https://github.com/pallets/werkzeug.git",
+      "source_module": "werkzeug",
+      "source_root": "src",
+      "python": "3.12.13",
+      "dependencies": ["Werkzeug==3.1.5", "MarkupSafe==3.0.3"]
+    }
+  },
+  "cases": [
+    {
+      "id": "flask-5157-main-spec-regression",
+      "root_cause_group": "flask-main-spec",
+      "case_role": "regression",
+      "repository": "flask",
+      "pr": 5157,
+      "source_pr": "https://github.com/pallets/flask/pull/5157",
+      "confirmation_issue": "https://github.com/pallets/flask/issues/5160",
+      "fix_pr": "https://github.com/pallets/flask/pull/5161",
+      "base_sha": "367e1df785a71e9004d9a87a221652bfc5a964ac",
+      "head_sha": "ed8ddb6a3a14ae332823b0a266b02a5ef024cbb3",
+      "merge_base_sha": "367e1df785a71e9004d9a87a221652bfc5a964ac",
+      "reproducer": "flask_main_spec.py",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "main-module-find-spec-error",
+          "path": "src/flask/scaffold.py",
+          "start_line": 858,
+          "end_line": 859,
+          "description": "Replacing pkgutil.get_loader with find_spec for __main__ raises ValueError when a script has no __spec__, so Flask(__name__) can no longer start it."
+        }
+      ]
+    },
+    {
+      "id": "flask-5161-main-spec-fix",
+      "root_cause_group": "flask-main-spec",
+      "case_role": "fix",
+      "repository": "flask",
+      "pr": 5161,
+      "source_pr": "https://github.com/pallets/flask/pull/5161",
+      "confirmation_issue": "https://github.com/pallets/flask/issues/5160",
+      "base_sha": "c8cf4694c60f0d81809468a1b45ec730496cc546",
+      "head_sha": "bda295d37fa3809c95a93d01dd605d0222109889",
+      "merge_base_sha": "c8cf4694c60f0d81809468a1b45ec730496cc546",
+      "reproducer": "flask_main_spec.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    },
+    {
+      "id": "requests-5681-proxy-auth-regression",
+      "root_cause_group": "requests-proxy-auth",
+      "case_role": "regression",
+      "repository": "requests",
+      "pr": 5681,
+      "source_pr": "https://github.com/psf/requests/pull/5681",
+      "confirmation_issue": "https://github.com/psf/requests/issues/5888",
+      "fix_pr": "https://github.com/psf/requests/pull/5924",
+      "base_sha": "5035827ba4ca5d0daaf59ee7b55fd3333b34fdc6",
+      "head_sha": "60ea7f0c2def461a9ddc20e7af0fc90b68dbe0de",
+      "merge_base_sha": "589c4547338b592b1fb77c65663d8aa6fbb7e38b",
+      "reproducer": "requests_proxy_auth.py",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "initial-send-strips-proxy-auth",
+          "path": "requests/sessions.py",
+          "start_line": 636,
+          "end_line": 636,
+          "description": "Calling rebuild_proxies for the initial send deletes a caller-supplied Proxy-Authorization header even when no redirect or proxy credential replacement is needed."
+        }
+      ]
+    },
+    {
+      "id": "requests-5924-proxy-auth-fix",
+      "root_cause_group": "requests-proxy-auth",
+      "case_role": "fix",
+      "repository": "requests",
+      "pr": 5924,
+      "source_pr": "https://github.com/psf/requests/pull/5924",
+      "confirmation_issue": "https://github.com/psf/requests/issues/5888",
+      "base_sha": "aae78010e987a414c176bddbf474cd554505219c",
+      "head_sha": "442ccb48eaf9266723e58121a202f5278cffbd29",
+      "merge_base_sha": "aae78010e987a414c176bddbf474cd554505219c",
+      "reproducer": "requests_proxy_auth.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    },
+    {
+      "id": "requests-7272-delegated-stream-regression",
+      "root_cause_group": "requests-delegated-stream",
+      "case_role": "regression",
+      "repository": "requests-modern",
+      "pr": 7272,
+      "source_pr": "https://github.com/psf/requests/pull/7272",
+      "confirmation_issue": "https://github.com/psf/requests/issues/7432",
+      "fix_pr": "https://github.com/psf/requests/pull/7433",
+      "base_sha": "8f6cda9969f4a98c45ea2922f6bcbefc02256202",
+      "head_sha": "4cf9bb5cb159ad54165e1808666154a7509da4e6",
+      "merge_base_sha": "6ec76b4a36fba4a32fb72f5f9ba04e632635e477",
+      "reproducer": "requests_delegated_stream.py",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "delegated-stream-loses-stream-detection",
+          "path": "src/requests/models.py",
+          "start_line": 599,
+          "end_line": 601,
+          "description": "Replacing hasattr(data, '__iter__') with isinstance(data, Iterable) rejects file wrappers that delegate __iter__ dynamically; preparing an upload raises TypeError instead of treating it as a rewindable stream."
+        }
+      ]
+    },
+    {
+      "id": "requests-7433-delegated-stream-fix",
+      "root_cause_group": "requests-delegated-stream",
+      "case_role": "fix",
+      "repository": "requests-modern",
+      "pr": 7433,
+      "source_pr": "https://github.com/psf/requests/pull/7433",
+      "confirmation_issue": "https://github.com/psf/requests/issues/7432",
+      "base_sha": "0b401c76b6e80a4eecf3c690085b2553f6e261ca",
+      "head_sha": "ea1c36c1b1a8364e234b6ad49ea05e3261636f8a",
+      "merge_base_sha": "0b401c76b6e80a4eecf3c690085b2553f6e261ca",
+      "reproducer": "requests_delegated_stream.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    },
+    {
+      "id": "werkzeug-3081-multipart-crlf-regression",
+      "root_cause_group": "werkzeug-multipart-crlf",
+      "case_role": "regression",
+      "repository": "werkzeug",
+      "pr": 3081,
+      "source_pr": "https://github.com/pallets/werkzeug/pull/3081",
+      "confirmation_issue": "https://github.com/pallets/werkzeug/issues/3088",
+      "fix_pr": "https://github.com/pallets/werkzeug/pull/3089",
+      "base_sha": "b48878cf16dfca3c89ac58aca47ab1ecfcb71354",
+      "head_sha": "1049dd6b2a363e1ef302b4161c340fb8582f627a",
+      "merge_base_sha": "b48878cf16dfca3c89ac58aca47ab1ecfcb71354",
+      "reproducer": "werkzeug_multipart_crlf.py",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "partial-boundary-search-includes-data-prefix",
+          "path": "src/werkzeug/sansio/multipart.py",
+          "start_line": 252,
+          "end_line": 264,
+          "description": "The partial-boundary search uses data including the part's CRLF prefix instead of slicing from data_start; a 64 KiB multipart boundary split leaks CRLF into the next text field."
+        }
+      ]
+    },
+    {
+      "id": "werkzeug-3089-multipart-crlf-fix",
+      "root_cause_group": "werkzeug-multipart-crlf",
+      "case_role": "fix",
+      "repository": "werkzeug",
+      "pr": 3089,
+      "source_pr": "https://github.com/pallets/werkzeug/pull/3089",
+      "confirmation_issue": "https://github.com/pallets/werkzeug/issues/3088",
+      "base_sha": "11c9fe9272e281b90abe89dc59f86e44ee453bab",
+      "head_sha": "e8035c632250824edf21de70cf555580b2e4ba95",
+      "merge_base_sha": "11c9fe9272e281b90abe89dc59f86e44ee453bab",
+      "reproducer": "werkzeug_multipart_crlf.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    },
+    {
+      "id": "werkzeug-3113-empty-host-regression",
+      "root_cause_group": "werkzeug-empty-host",
+      "case_role": "regression",
+      "repository": "werkzeug",
+      "pr": 3113,
+      "source_pr": "https://github.com/pallets/werkzeug/pull/3113",
+      "confirmation_issue": "https://github.com/pallets/werkzeug/issues/3142",
+      "fix_pr": "https://github.com/pallets/werkzeug/pull/3148",
+      "base_sha": "ef10b724f500f9c3f28f117a4f2a62ca273ff6fb",
+      "head_sha": "de546be7144cd6d12d088393c2d1975f5ab23700",
+      "merge_base_sha": "eb8f217bfb909634efd5bb91ef717623a49d6c59",
+      "reproducer": "werkzeug_empty_host.py",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "missing-host-rejected-without-trusted-hosts",
+          "path": "src/werkzeug/sansio/utils.py",
+          "start_line": 139,
+          "end_line": 140,
+          "description": "Always applying host_is_trusted rejects an empty host with SecurityError even when no trusted host policy is configured; HTTP/1.0 and HTTP/0.9 may omit Host."
+        }
+      ]
+    },
+    {
+      "id": "werkzeug-3148-empty-host-fix",
+      "root_cause_group": "werkzeug-empty-host",
+      "case_role": "fix",
+      "repository": "werkzeug",
+      "pr": 3148,
+      "source_pr": "https://github.com/pallets/werkzeug/pull/3148",
+      "confirmation_issue": "https://github.com/pallets/werkzeug/issues/3142",
+      "base_sha": "65eb6398231fe94f32fbc765a74980ca61fe5d2b",
+      "head_sha": "deab88f61fa57d37d19f83ea438d4bdebb5a743c",
+      "merge_base_sha": "65eb6398231fe94f32fbc765a74980ca61fe5d2b",
+      "reproducer": "werkzeug_empty_host.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    },
+    {
+      "id": "werkzeug-2974-environ-headers-regression",
+      "root_cause_group": "werkzeug-environ-headers",
+      "case_role": "regression",
+      "repository": "werkzeug",
+      "pr": 2974,
+      "source_pr": "https://github.com/pallets/werkzeug/pull/2974",
+      "confirmation_issue": "https://github.com/pallets/werkzeug/issues/2985",
+      "fix_pr": "https://github.com/pallets/werkzeug/pull/2986",
+      "base_sha": "7e22812f390df94809b01c93f6849901e1be0de4",
+      "head_sha": "0294d88b9c10fe079ecfe9e02129d52b1e95de54",
+      "merge_base_sha": "7e22812f390df94809b01c93f6849901e1be0de4",
+      "reproducer": "werkzeug_environ_headers.py",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "environ-headers-string-uses-empty-internal-list",
+          "path": "src/werkzeug/datastructures/headers.py",
+          "start_line": 543,
+          "end_line": 543,
+          "description": "Headers.__str__ iterates its internal _list instead of the public iterator; EnvironHeaders reads values from the WSGI environment and leaves _list empty, so its string representation omits all headers."
+        }
+      ]
+    },
+    {
+      "id": "werkzeug-2986-environ-headers-fix",
+      "root_cause_group": "werkzeug-environ-headers",
+      "case_role": "fix",
+      "repository": "werkzeug",
+      "pr": 2986,
+      "source_pr": "https://github.com/pallets/werkzeug/pull/2986",
+      "confirmation_issue": "https://github.com/pallets/werkzeug/issues/2985",
+      "base_sha": "d1f60d68ac9788aec05712aca29867abd00d5cc3",
+      "head_sha": "afc4ea7b5e969d501194d8acdc88025f877a5510",
+      "merge_base_sha": "d1f60d68ac9788aec05712aca29867abd00d5cc3",
+      "reproducer": "werkzeug_environ_headers.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    },
+    {
+      "id": "click-1825-relative-symlink-regression",
+      "root_cause_group": "click-relative-symlink",
+      "case_role": "regression",
+      "repository": "click",
+      "pr": 1825,
+      "source_pr": "https://github.com/pallets/click/pull/1825",
+      "confirmation_issue": "https://github.com/pallets/click/issues/1921",
+      "fix_pr": "https://github.com/pallets/click/pull/2006",
+      "base_sha": "ab80d1df893b59f25b4eb18e9351207966cc217e",
+      "head_sha": "df5a6e4801110f0f1c8ed8fe15dbeefd74507987",
+      "merge_base_sha": "ab80d1df893b59f25b4eb18e9351207966cc217e",
+      "reproducer": "click_relative_symlink.py",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "relative-link-target-resolved-from-cwd",
+          "path": "src/click/types.py",
+          "start_line": 738,
+          "end_line": 741,
+          "description": "Reading a relative symlink target with os.readlink and passing it to realpath resolves it against the process CWD instead of the symlink's directory, so an existing path is rejected."
+        }
+      ]
+    },
+    {
+      "id": "click-2006-relative-symlink-fix",
+      "root_cause_group": "click-relative-symlink",
+      "case_role": "fix",
+      "repository": "click",
+      "pr": 2006,
+      "source_pr": "https://github.com/pallets/click/pull/2006",
+      "confirmation_issue": "https://github.com/pallets/click/issues/1921",
+      "base_sha": "76cc18d1f0bd5854f14526e3ccbce631d8344cce",
+      "head_sha": "986f322e435fac5e1fb8505d3683c8a224c18b06",
+      "merge_base_sha": "76cc18d1f0bd5854f14526e3ccbce631d8344cce",
+      "reproducer": "click_relative_symlink.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    },
+    {
+      "id": "click-3030-lookup-default-regression",
+      "root_cause_group": "click-lookup-default-unset",
+      "case_role": "regression",
+      "repository": "click",
+      "pr": 3030,
+      "source_pr": "https://github.com/pallets/click/pull/3030",
+      "confirmation_issue": "https://github.com/pallets/click/issues/3145",
+      "fix_pr": "https://github.com/pallets/click/pull/3224",
+      "base_sha": "d1ba34cb322e7ff8bcdf21590a03cf8e7ccd73e5",
+      "head_sha": "dc8e539775aab2b881d90cfd27e815d33df75918",
+      "merge_base_sha": "d1ba34cb322e7ff8bcdf21590a03cf8e7ccd73e5",
+      "reproducer": "click_lookup_default_unset.py",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "lookup-default-leaks-unset-sentinel",
+          "path": "src/click/core.py",
+          "start_line": 697,
+          "end_line": 697,
+          "description": "Context.lookup_default returns the internal UNSET sentinel for a missing default instead of the documented None, breaking callers that test for None."
+        }
+      ]
+    },
+    {
+      "id": "click-3224-lookup-default-fix",
+      "root_cause_group": "click-lookup-default-unset",
+      "case_role": "fix",
+      "repository": "click",
+      "pr": 3224,
+      "source_pr": "https://github.com/pallets/click/pull/3224",
+      "confirmation_issue": "https://github.com/pallets/click/issues/3145",
+      "base_sha": "fa7f035ab58dc4d9b8818b92fbc6a8f3c3234af6",
+      "head_sha": "4538229259558c489d0ac0fbea8b1403db559c9f",
+      "merge_base_sha": "fa7f035ab58dc4d9b8818b92fbc6a8f3c3234af6",
+      "reproducer": "click_lookup_default_unset.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    },
+    {
+      "id": "click-2818-runner-default-control",
+      "root_cause_group": "click-runner-default-control",
+      "case_role": "control",
+      "repository": "click",
+      "pr": 2818,
+      "source_pr": "https://github.com/pallets/click/pull/2818",
+      "confirmation_issue": "https://github.com/pallets/click/issues/2817",
+      "base_sha": "5961d31fb566f089ad468a5b26a32f1ebfa7f63e",
+      "head_sha": "a6ae8aaf1c24c9517585d117b493751b1bd8e867",
+      "merge_base_sha": "5961d31fb566f089ad468a5b26a32f1ebfa7f63e",
+      "reproducer": "click_runner_catch_exceptions.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "control_scope": "Intended CliRunner-level exception policy and per-invocation override; no known target defect is labeled.",
+      "findings": []
+    },
+    {
+      "id": "werkzeug-2902-http-421-control",
+      "root_cause_group": "werkzeug-http-421-control",
+      "case_role": "control",
+      "repository": "werkzeug",
+      "pr": 2902,
+      "source_pr": "https://github.com/pallets/werkzeug/pull/2902",
+      "confirmation_issue": "https://github.com/pallets/werkzeug/issues/2850",
+      "base_sha": "f95ddda868724179b2448c8e2fdd2e678c035591",
+      "head_sha": "437cf6fccb10a313c6c620e2da7b58729aa853b9",
+      "merge_base_sha": "f95ddda868724179b2448c8e2fdd2e678c035591",
+      "reproducer": "werkzeug_misdirected_request.py",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "control_scope": "Intended addition of HTTP 421 exception mapping and response; no known target defect is labeled.",
+      "findings": []
+    }
+  ]
+}

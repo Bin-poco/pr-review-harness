@@ -7,7 +7,11 @@ name = "pr-review-harness"
 version = "0.1.0"
 description = "A learning project for evidence-aware Python pull request review."
 requires-python = ">=3.11"
-dependencies = ["deepagents==0.7.21", "langchain-openai==1.6.7"]
+dependencies = [
+    "deepagents==0.7.21",
+    "langchain-openai==1.6.7",
+    "langgraph-checkpoint-sqlite==3.1.1",
+]
 
 [project.scripts]
 pr-harness = "pr_review_harness.cli:main"

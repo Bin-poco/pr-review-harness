@@ -62,6 +62,7 @@ class Snapshot:
     repo: Path
     base_ref: str
     head_ref: str
+    repository_identity: str | None = None
     base_sha: str = field(init=False)
     head_sha: str = field(init=False)
     merge_base_sha: str = field(init=False)
@@ -104,13 +105,17 @@ class Snapshot:
         common = Path(self._git("rev-parse", "--git-common-dir").decode().strip())
         if not common.is_absolute():
             common = self.repo / common
-        identity = str(common.resolve()).encode("utf-8", errors="surrogateescape")
+        identity = (self.repository_identity or str(common.resolve())).encode(
+            "utf-8", errors="surrogateescape"
+        )
         object.__setattr__(self, "repo_id", hashlib.sha256(identity).hexdigest())
         object.__setattr__(self, "changed_files", self._changes())
 
     @classmethod
-    def load(cls, repo: Path, base_ref: str, head_ref: str) -> "Snapshot":
-        return cls(repo, base_ref, head_ref)
+    def load(
+        cls, repo: Path, base_ref: str, head_ref: str, *, repository_identity=None
+    ) -> "Snapshot":
+        return cls(repo, base_ref, head_ref, repository_identity)
 
     def _git(self, *args: str, max_bytes: int = 32_000_000) -> bytes:
         result = subprocess.run(

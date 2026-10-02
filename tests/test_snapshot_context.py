@@ -222,6 +222,19 @@ def test_context_includes_head_neighbors_tests_callers_and_config(repo: Path) ->
     assert len(pack.text) <= pack.max_chars
 
 
+def test_context_prioritizes_changed_python_over_changelog(repo: Path) -> None:
+    (repo / "CHANGES.md").write_text("old note\n")
+    (repo / "zlogic.py").write_text("def process():\n    return 1\n")
+    base = commit(repo, "base")
+    (repo / "CHANGES.md").write_text("new note\n" * 500)
+    (repo / "zlogic.py").write_text("def process():\n    return 2\n")
+    head = commit(repo, "head")
+
+    pack = build_context(Snapshot(repo, base, head), max_chars=1500)
+    assert pack.items[0].path == "zlogic.py"
+    assert "return 2" in pack.text
+
+
 @pytest.mark.parametrize("budget", [1, 30, 100, 500, 1000, 24000])
 def test_context_strict_character_budget_and_visible_omissions(repo: Path, budget: int) -> None:
     (repo / "module.py").write_text("value = 1\n" + "# base\n" * 500)

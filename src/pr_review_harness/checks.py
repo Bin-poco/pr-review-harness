@@ -1,12 +1,13 @@
 """Run bounded checks on exported immutable snapshots."""
 
 import os
-import signal
 import subprocess
 import sys
 import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
+from uuid import uuid4
 
+from pr_review_harness.execution import ExecutionPolicy, bounded_process, docker_environment
 from pr_review_harness.models import CheckRun, Evidence
 from pr_review_harness.snapshot import Snapshot
 
@@ -31,21 +32,45 @@ if not result.testsRun:
 sys.exit(2 if result.errors else 1 if result.failures else 0)
 """
 
+# A trusted PID 1 owns the deadline even if the host runner is killed. The test
+# child cannot turn off this timer by changing Python state in its own process.
+_CONTAINER_SUPERVISOR = """
+import subprocess
+import sys
+p = subprocess.Popen([sys.executable, '-I', '-B', '-c', sys.argv[1],
+                      sys.argv[2], '/workspace'])
+try:
+    sys.exit(p.wait(timeout=int(sys.argv[3])))
+except subprocess.TimeoutExpired:
+    print('Harness container test deadline exceeded.', flush=True)
+    sys.exit(4)
+"""
+
 
 class CheckRunner:
-    """Expose syntax checks and optional local unittest execution."""
+    """Expose syntax checks and explicitly configured unittest execution."""
 
-    def __init__(self, snapshot: Snapshot, *, run_tests: bool = False, timeout: int = 20):
+    def __init__(
+        self,
+        snapshot: Snapshot,
+        *,
+        run_tests: bool = False,
+        timeout: int = 20,
+        execution: ExecutionPolicy | None = None,
+    ):
         self.snapshot = snapshot
         self.run_tests = run_tests
-        self.timeout = timeout
+        self.execution = execution or ExecutionPolicy(timeout=timeout)
+        if run_tests:
+            self.execution = self.execution.prepare()
+        self.timeout = self.execution.timeout
         self.cache: dict[tuple[str, str], Evidence] = {}
 
     def run(self, kind: str, path: str) -> Evidence:
         if kind not in {"syntax", "unittest"}:
             raise ValueError("Only syntax and unittest checks are supported.")
         if kind == "unittest" and not self.run_tests:
-            raise ValueError("unittest requires --run-tests: it executes repository code locally.")
+            raise ValueError("unittest requires --run-tests: it executes repository code.")
         if path not in self.snapshot.head_files or not path.endswith(".py"):
             raise ValueError("Choose a tracked Python file from the head snapshot.")
         key = (kind, path)
@@ -86,39 +111,121 @@ class CheckRunner:
             return self._unittest(root, path, version, sha)
 
     def _unittest(self, root: Path, path: str, version: str, sha: str) -> CheckRun:
-        test = PurePosixPath(path)
-        # Load exactly the requested file; discovery could include changed same-name tests.
+        if self.execution.backend == "docker":
+            return self._docker_unittest(root, path, version, sha)
         command = [
             sys.executable,
+            "-I",
+            "-B",
             "-c",
             _UNITTEST_DRIVER,
-            str(root / test),
+            str(root / path),
             str(root),
         ]
         environment = {
             key: os.environ[key] for key in ("PATH", "LANG", "SYSTEMROOT") if key in os.environ
         }
         environment["PYTHONNOUSERSITE"] = "1"
-        with tempfile.TemporaryFile() as log:
-            process = subprocess.Popen(
+        code, output = bounded_process(
+            command,
+            cwd=root,
+            environment=environment,
+            timeout=self.timeout,
+            output_bytes=self.execution.output_bytes,
+        )
+        return self._result(version, sha, code, output)
+
+    def _docker_unittest(self, root, path, version, sha):
+        name = "pr-harness-" + uuid4().hex
+        policy = self.execution
+        # Keep the export private at mode 0700, including restrictive umasks.
+        # Match the non-root host UID; root callers transfer only this export
+        # to the unprivileged container UID instead of making it world-readable.
+        if not os.getuid():
+            for directory, _, files in os.walk(root):
+                os.chown(directory, policy.uid, policy.gid)
+                for filename in files:
+                    os.chown(Path(directory) / filename, policy.uid, policy.gid)
+        command = [
+            "docker",
+            "run",
+            "--name",
+            name,
+            "--rm",
+            "--pull=never",
+            "--log-driver",
+            "none",
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--user",
+            f"{policy.uid}:{policy.gid}",
+            "--pids-limit",
+            str(policy.pids),
+            "--memory",
+            f"{policy.memory_mb}m",
+            "--memory-swap",
+            f"{policy.memory_mb}m",
+            "--cpus",
+            str(policy.cpus),
+            "--ulimit",
+            "nofile=256:256",
+            "--tmpfs",
+            "/tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777",
+            "--mount",
+            f"type=bind,source={root},target=/workspace,readonly",
+            "--workdir",
+            "/workspace",
+            "--env",
+            "HOME=/tmp",
+            "--env",
+            "TMPDIR=/tmp",
+            "--entrypoint",
+            "python",
+            policy.image_id,
+            "-I",
+            "-B",
+            "-c",
+            _CONTAINER_SUPERVISOR,
+            _UNITTEST_DRIVER,
+            f"/workspace/{path}",
+            str(policy.timeout),
+        ]
+        try:
+            code, output = bounded_process(
                 command,
                 cwd=root,
-                env=environment,
-                stdout=log,
-                stderr=log,
-                start_new_session=True,
+                environment=docker_environment(),
+                timeout=policy.timeout + 10,
+                output_bytes=policy.output_bytes,
             )
-            try:
-                code = process.wait(timeout=self.timeout)
-                status = {0: "passed", 1: "failed", 2: "error", 3: "unavailable"}.get(code, "error")
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-                code, status = None, "timeout"
-            log.seek(0, os.SEEK_END)
-            size = log.tell()
-            log.seek(max(0, size - 8000))
-            output = log.read().decode("utf-8", errors="replace")
-        if "Ran 0 tests" in output:
-            status = "unavailable"
+        finally:
+            # Also handles cancellation/failed starts. A killed host cannot enter
+            # finally; the in-container deadline and --rm handle that case.
+            cleanup = subprocess.run(
+                ["docker", "rm", "-f", name],
+                env=docker_environment(),
+                capture_output=True,
+                timeout=10,
+            )
+            if cleanup.returncode and b"No such container" not in cleanup.stderr:
+                raise RuntimeError("Container cleanup failed; inspect Docker before retrying")
+        return self._result(version, sha, code, output)
+
+    @staticmethod
+    def _result(version, sha, code, output):
+        status = {
+            0: "passed",
+            1: "failed",
+            2: "error",
+            3: "unavailable",
+            4: "timeout",
+            None: "timeout",
+        }.get(code, "error")
+        if status == "timeout":
+            code = None
         return CheckRun(version, sha, status, code, output)

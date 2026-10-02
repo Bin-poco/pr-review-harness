@@ -64,6 +64,7 @@ class Evidence:
 
 @dataclass
 class ReviewSession:
+    sequence: int = 0
     evidence: list[Evidence] = field(default_factory=list)
     findings: list[Finding] | None = None
     rejected: list[str] = field(default_factory=list)

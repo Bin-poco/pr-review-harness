@@ -3,8 +3,10 @@
 ## 当前状态
 
 本项目可以读取固定版本的 `review.json` 和人工标注 JSON，执行位置匹配、重复意见统计
-及行号/证据诊断。下述评测集尚未构建，真实模型实验尚未执行；没有模型准确率、召回率
-或性能提升结果。模块单元测试只证明评估器按约定计数，不能证明审查质量提高。
+及行号/证据诊断。已有 `benchmark` 命令执行工作状态/记忆四组消融并生成人工复核模板。
+首轮 3 个[真实 Click PR 开发案例](../evaluation/click_real_prs/README.md)已固定提交并在本地复现：2 个历史回归、1 个对应修复的无目标缺陷案例。[真实模型运行与本助手逐条复核](../evaluation/click_real_prs/FIRST_RUN.md)已完成首轮；其中一组运行失败，还有发现遗漏、误报和未定性意见。尚无独立人工复核。以下规划的 24 例正式评测集尚未构建，因此没有可靠的准确率、召回率或性能提升结论。模块单元测试只证明评估器按约定计数，不能证明审查质量提高。
+
+跨仓库[公开试点评测集](../evaluation/independent_real_prs/README.md)现有 Flask、Requests、Werkzeug、Click 的 18 个真实 PR，双版本复现 36 次均符合预期；尚未达到规划的 24 例正式评测集规模。8 个回归与 8 个修复按根因配对，另有 2 个独立功能变更对照。[封存试跑](../evaluation/independent_real_prs/FIRST_RUN.md)完成了 36 次审查尝试，其中 33 次正常提交、3 次结构化提交失败；两种配置在共同完成的 6 个回归案例中各命中 2 个已知缺陷位置。正式统计需按根因分组报告，不能把公开标签当作私有封存集，也不能将位置匹配直接当作审查质量。
 
 ## 本地评估器
 
@@ -76,9 +78,11 @@ uv run pr-harness evaluate \
 第一版面向小型 Python 仓库，检查本次 PR 引入的逻辑缺陷、边界条件和接口兼容问题。
 审查输出至少包含位置、触发条件、影响及证据。风格建议不计入缺陷发现指标。
 
-计划构建 24 个小 PR：6 个开发案例用于调整策略，18 个封存评测案例（12 个含已知
-缺陷、6 个无目标缺陷）。主要采用可复现的人工注入缺陷，少量真实历史 PR 用于展示；
-两类结果分别报告，不能将该小样本结果解释成企业生产效果。
+当前用 3 个 Click 历史 PR 作开发案例；另建 15–20 个跨仓库真实历史 PR 候选，先
+扩充并固定清单，再统一运行模型。候选需覆盖不同根因和变更规模，并加入与已知缺陷
+无关的无目标缺陷 PR。回归与对应修复须按根因分组，不能当作独立缺陷；修复 PR 只
+证明这一目标缺陷已修好，不能自动证明整份 PR 没有其他问题。若以后加入人工注入
+缺陷，应单独成组报告，不能与真实历史 PR 混算，也不能将小样本结果解释成企业效果。
 
 ## 固定快照与变更归因
 
@@ -135,9 +139,9 @@ uv run pr-harness evaluate \
 ## 跨 PR 记忆评测与无泄漏
 
 记忆的当前实现路线是 **SQLite 持久存储 → 仓库、文件范围和有效期筛选 → 生成有
-字符预算的快照 → 通过 Deep Agents memory 文件注入**。SQLite 跨进程保存反馈；
-Deep Agents 默认 StateBackend 本身不提供此项目所需的跨进程数据库持久化。将文件
-内容装入单次图状态，也不意味着该状态自动成为长期数据库。
+字符预算的冻结快照 → ContextManager 在摘要前注入**。SQLite 跨进程保存反馈；
+StateBackend 文件随 LangGraph SQLite checkpoint 恢复，生命周期属于当前 run；长期
+反馈库属于跨 PR 数据，两者分开。
 
 只有人工 CLI 反馈可以写入记忆，模型发现不会自动成为已确认经验。`accepted` 记录
 为有范围的规则或经验；`dismissed` 只提醒此前建议被驳回，不能推断业务允许某种行为，
@@ -168,3 +172,40 @@ Deep Agents 默认 StateBackend 本身不提供此项目所需的跨进程数据
 
 自动审查耗时不能直接推导人工维护者响应速度或工作量下降。简历可以先写已实现的
 机制与可复现流程；评测完成后再填写真实数字，不预设“提升 X%”。
+
+
+## 已实现的四组消融命令
+
+创建 `cases.json`，路径相对该文件解析；base/head 在运行开始固定为 SHA：
+
+```json
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "case-01",
+      "repo": "../your-repo",
+      "base": "main",
+      "head": "feature",
+      "gold": "gold-01.json",
+      "strategy": "ast",
+      "run_tests": false,
+      "memory_db": "prior-feedback.sqlite3",
+      "memory_is_prior_feedback": true
+    }
+  ]
+}
+```
+
+没有历史反馈时省略两个 memory 字段。记忆库必须来自较早 PR 的明确人工反馈，不能写入当前目标缺陷的答案。声明 true 只是数据契约，无法自动证明无泄漏。
+
+```bash
+uv run pr-harness benchmark --cases private/cases.json --out outputs/ablation \
+  --window-tokens 65536 --total-model-calls 64
+```
+
+默认运行 baseline（两者关）、working（仅工作状态）、memory（仅记忆）、both（两者开）。同一 case 的记忆快照只捕获一次，主工具/模型/预算一致；工作状态开关是唯一的 policy 变化。`--variants` 可选择子集；`--scripted` 只用于折扣 demo 的流程验收。
+
+每组保存报告或失败记录；所有 Agent 运行结束后才读取 gold，输出 `benchmark.json` 的位置候选计数、SHA、配置、用量和耗时，以及空白 `human-review.json`。人工逐项填写根因是否匹配、是否误报及理由。遗漏从 evaluation.json 的 unmatched 标签另行复核。eligible_for_model_quality 保持 false，脚本不会凭位置计数生成质量结论。
+
+如果要比较 AST/imports、技能或核验，分别建立实验，不把这些变化混入本命令的四组结论。真实模型具有随机性；当前入口每组一次，重复实验需要保留全部 batch，不能只选较好的结果。

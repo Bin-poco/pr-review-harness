@@ -131,3 +131,72 @@ def test_invalid_budget_is_rejected(tmp_path: Path, max_chars: object) -> None:
     store = MemoryStore(tmp_path / "memory.db")
     with pytest.raises(ValueError):
         store.recall("a", [], max_chars=max_chars)
+
+
+def test_revision_and_revocation_preserve_history_and_stop_old_recall(tmp_path):
+    store = MemoryStore(tmp_path / "memory.db")
+    old = store.add("a", "Old assumption", "PR 1", path_glob="src/**", disposition="dismissed")
+    before = store.recall_snapshot("a", ["src/api.py"])
+    new = store.revise("a", old, "New clarification", "PR 2", reason="Maintainer correction")
+    records = {row["id"]: row for row in store.list_records("a")}
+    assert records[old]["status"] == "superseded"
+    assert records[old]["replaced_by"] == new
+    assert records[old]["status_reason"] == "Maintainer correction"
+    assert records[new]["path_glob"] == "src/**"
+    assert records[new]["disposition"] == "dismissed"
+    assert "Old assumption" not in store.recall("a", ["src/api.py"])
+    assert "New clarification" in store.recall("a", ["src/api.py"])
+    assert "Old assumption" in before.text  # Already captured runs retain their original input.
+    store.revoke("a", new, reason="No longer applicable")
+    assert store.recall("a", ["src/api.py"]) == ""
+    assert len(store.list_records("a")) == 2
+    assert store.list_records("a")[0]["status"] == "revoked"
+
+
+def test_failed_revision_and_cross_repo_mutation_are_atomic(tmp_path):
+    store = MemoryStore(tmp_path / "memory.db")
+    old = store.add("a", "Keep this rule", "PR 1")
+    with pytest.raises(ValueError):
+        store.revise("a", old, "", "PR 2", reason="invalid")
+    with pytest.raises(ValueError):
+        store.revoke("b", old, reason="wrong repository")
+    assert len(store.list_records("a")) == 1
+    assert store.list_records("a")[0]["status"] == "active"
+    store.revoke("a", old, reason="retired")
+    with pytest.raises(ValueError):
+        store.revise("a", old, "New rule", "PR 3", reason="stale ID")
+    assert len(store.list_records("a")) == 1
+
+
+def test_recall_prioritizes_scoped_feedback_and_reports_exact_snapshot(tmp_path):
+    import hashlib
+
+    store = MemoryStore(tmp_path / "memory.db")
+    scoped = store.add("a", "Specific rule " * 300, "PR 1", path_glob="src/**")
+    store.add("a", "Newer global rule", "PR 2")
+    snapshot = store.recall_snapshot("a", ["src/api.py"], max_chars=800)
+    assert [entry["id"] for entry in snapshot.manifest["records"]] == [scoped]
+    assert snapshot.manifest["records"][0]["truncated"] is True
+    assert snapshot.manifest["eligible_count"] == 2
+    assert snapshot.manifest["omitted_count"] == 1
+    assert snapshot.manifest["sha256"] == hashlib.sha256(snapshot.text.encode()).hexdigest()
+    assert len(snapshot.text) <= 800
+
+
+def test_legacy_database_migrates_without_losing_feedback(tmp_path):
+    db = tmp_path / "legacy.db"
+    with sqlite3.connect(db) as connection:
+        connection.execute("""CREATE TABLE review_memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, repo_id TEXT NOT NULL,
+            text TEXT NOT NULL, source TEXT NOT NULL, path_glob TEXT NOT NULL,
+            disposition TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL)""")
+        connection.execute(
+            "INSERT INTO review_memory VALUES (1,'a','Legacy rule','PR 1','*',"
+            "'accepted','2026-01-01T00:00:00+00:00','2099-01-01T00:00:00+00:00')"
+        )
+    store = MemoryStore(db)
+    assert "Legacy rule" in store.recall("a", [])
+    assert store.list_records("a")[0]["status"] == "active"
+    MemoryStore(db)  # Migration can be repeated.
+    store.revoke("a", 1, reason="outdated")
+    assert store.recall("a", []) == ""

@@ -329,18 +329,32 @@ def build_context(
         "Code locations refer to HEAD. Related-file selection is a bounded heuristic.\n"
     )
     builder = _Builder(max_chars, header)
-    changes = snapshot.changed_files[:_MAX_CHANGED_FILES]
+    # Spend the first context allocation on executable changes, then tests and
+    # prose. Git's path ordering can otherwise let changelogs hide changed code.
+    def priority(path: str) -> int:
+        if path.endswith(".py"):
+            return 1 if _is_test(path) else 0
+        return 2
+
+    changes = sorted(
+        snapshot.changed_files, key=lambda item: (priority(item.path), item.path)
+    )[:_MAX_CHANGED_FILES]
     changed_symbols: dict[str, frozenset[str]] = {}
     if len(snapshot.changed_files) > len(changes):
         builder.omit(f"changed-file context capped at {_MAX_CHANGED_FILES} files")
     core_budget = int(builder.remaining * 0.70)
     per_section = max(200, min(3000, max_chars // 10))
     for changed in changes:
+        allowance = (
+            max(200, min(4200, max_chars // 5))
+            if priority(changed.path) == 0
+            else per_section
+        )
         core_budget -= builder.add(
             changed.path,
             "PR diff against merge base",
             changed.patch,
-            min(per_section, core_budget),
+            min(allowance, core_budget),
         )
         if changed.path not in snapshot.head_files:
             builder.omit(f"{changed.path}: no regular HEAD file (deleted, symlink, or submodule)")
@@ -366,7 +380,7 @@ def build_context(
             changed.path,
             "HEAD lines near changed ranges",
             nearby,
-            min(per_section, core_budget),
+            min(allowance, core_budget),
         )
         if "[lines omitted]" in nearby or "[remaining lines omitted]" in nearby:
             builder.omit(f"{changed.path}: HEAD context contains selected neighborhoods only")

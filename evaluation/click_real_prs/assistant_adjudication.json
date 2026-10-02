@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "reviewer": "assistant evidence review; independent human review pending",
+  "source_batch": "c61bc4faee144e41be4186206da976c3",
+  "label_revision": 2,
+  "judgments": [
+    {
+      "case_id": "click-2934-stdin-eof-regression",
+      "variant": "baseline",
+      "run_id": "5897ece0f31c4ff487faa6691bdd7007",
+      "finding_id": "finding-1ccebc9a4e14c3e9",
+      "path": "src/click/testing.py",
+      "line": 119,
+      "root_cause_match": true,
+      "false_positive": false,
+      "human_reason": "Matches the known EOF-to-StopIteration regression; trigger and changed line are correct."
+    },
+    {
+      "case_id": "click-2934-stdin-eof-regression",
+      "variant": "working",
+      "run_id": "6bb9c57685da42978a38eac80e22c055",
+      "finding_id": "finding-667cc8c5f79ea8fb",
+      "path": "src/click/testing.py",
+      "line": 119,
+      "root_cause_match": true,
+      "false_positive": false,
+      "human_reason": "Matches the known EOF-to-StopIteration regression and Click file iteration trigger."
+    },
+    {
+      "case_id": "click-1572-pager-closes-stdout",
+      "variant": "baseline",
+      "run_id": "e521f76ca03142d0a0df22e103eb1163",
+      "finding_id": "finding-3fd7890dd7c25ed1",
+      "path": "src/click/_termui_impl.py",
+      "line": 424,
+      "root_cause_match": true,
+      "false_positive": false,
+      "human_reason": "New label in revision 2: StringIO fallback passes on base and raises TypeError on head. The model misstates that construction, rather than writing, raises the error; the incompatible text/binary wrapper root cause is correct."
+    },
+    {
+      "case_id": "click-1572-pager-closes-stdout",
+      "variant": "baseline",
+      "run_id": "e521f76ca03142d0a0df22e103eb1163",
+      "finding_id": "finding-5c9b3377ab9ce509",
+      "path": "src/click/_compat.py",
+      "line": 505,
+      "root_cause_match": null,
+      "false_positive": null,
+      "human_reason": "Base strips ANSI but head retains it for a custom non-TTY stream with a color attribute. The behavior change is reproduced; whether that attribute is an intentional opt-in needs maintainer judgment."
+    },
+    {
+      "case_id": "click-1572-pager-closes-stdout",
+      "variant": "working",
+      "run_id": "55e5688be9c4477490803a784614394b",
+      "finding_id": "finding-8fe0443216d8f7b8",
+      "path": "src/click/_termui_impl.py",
+      "line": 423,
+      "root_cause_match": true,
+      "false_positive": false,
+      "human_reason": "Matches the known stdout buffer ownership regression and later upstream fix."
+    },
+    {
+      "case_id": "click-1572-pager-closes-stdout",
+      "variant": "working",
+      "run_id": "55e5688be9c4477490803a784614394b",
+      "finding_id": "finding-10121e01924fe731",
+      "path": "src/click/_termui_impl.py",
+      "line": 426,
+      "root_cause_match": false,
+      "false_positive": true,
+      "human_reason": "The proposed temporary-file failure does not occur: the pager context closes its own file after the wrapper is flushed. The same path passes on base and head. Its line happens to overlap the new StringIO label, illustrating a false location match."
+    }
+  ]
+}

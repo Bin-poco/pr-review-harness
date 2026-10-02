@@ -2,28 +2,38 @@
 
 import json
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass, field
+from pathlib import Path
 from threading import Lock
-from typing import Literal
+from typing import Annotated, Literal
 
-from deepagents import create_deep_agent
-from deepagents.backends import StateBackend
+from deepagents import DeepAgentState, create_deep_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
     ModelCallLimitMiddleware,
     ToolCallLimitMiddleware,
     hook_config,
 )
-from langchain.agents.middleware.model_call_limit import ModelCallLimitExceededError
-from langchain.agents.middleware.tool_call_limit import ToolCallLimitExceededError
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import tool
-from openai import APIError
 from pydantic import BaseModel, ConfigDict, Field
 
+from pr_review_harness.budget import BudgetPolicy
+from pr_review_harness.context_manager import VerificationContext
+from pr_review_harness.persistence import (
+    ModelAccounting,
+    RunStore,
+    atomic_json,
+    digest,
+    identity,
+    model_identity,
+)
+from pr_review_harness.review_state import ReceiptStateBackend, ReviewFacts
 from pr_review_harness.snapshot import Snapshot
+from pr_review_harness.state import latest
 
 VERIFY_PROMPT = """You are an independent verifier for proposed Python PR defects.
 Challenge each finding: compare the immutable merge-base and head code, inspect the
@@ -50,6 +60,7 @@ class VerificationDecision(BaseModel):
 
 @dataclass
 class _VerificationSession:
+    sequence: int = 0
     decisions: list[VerificationDecision] | None = None
     read_attempts: set[tuple[str, str]] = field(default_factory=set)
     readable_ranges: dict[tuple[str, str], list[tuple[int, int]]] = field(default_factory=dict)
@@ -57,6 +68,45 @@ class _VerificationSession:
     read_chars: int = 0
     trace: list[dict] = field(default_factory=list)
     rejected: list[str] = field(default_factory=list)
+
+
+class VerificationState(DeepAgentState):
+    verification_session: Annotated[dict, latest]
+    verification_manifest: dict
+    verification_context_requests: list[dict]
+
+
+def _dump_verification(session):
+    return {
+        "sequence": session.sequence,
+        "decisions": None
+        if session.decisions is None
+        else [d.model_dump() for d in session.decisions],
+        "read_attempts": sorted(session.read_attempts),
+        "readable_ranges": [[list(k), v] for k, v in session.readable_ranges.items()],
+        "missing_base_paths": sorted(session.missing_base_paths),
+        "read_chars": session.read_chars,
+        "trace": list(session.trace),
+        "rejected": list(session.rejected),
+    }
+
+
+def _load_verification(session, value):
+    session.sequence = value.get("sequence", 0)
+    items = value.get("decisions")
+    session.decisions = None if items is None else [VerificationDecision(**d) for d in items]
+    session.read_attempts = {tuple(item) for item in value.get("read_attempts", [])}
+    session.readable_ranges = {
+        tuple(k): [tuple(span) for span in ranges] for k, ranges in value.get("readable_ranges", [])
+    }
+    session.missing_base_paths = set(value.get("missing_base_paths", []))
+    session.read_chars = value.get("read_chars", 0)
+    session.trace = list(value.get("trace", []))
+    session.rejected = list(value.get("rejected", []))
+
+
+class VerificationFacts(ReviewFacts):
+    state_schema = VerificationState
 
 
 class _VerificationScope(AgentMiddleware):
@@ -67,6 +117,9 @@ class _VerificationScope(AgentMiddleware):
 
     @hook_config(can_jump_to=["end"])
     def before_model(self, state, runtime):
+        saved = state.get("verification_session")
+        if saved and saved.get("sequence", 0) >= self.session.sequence:
+            _load_verification(self.session, saved)
         if self.session.decisions is not None:
             return {"jump_to": "end"}
         return None
@@ -132,7 +185,14 @@ def _packet(snapshot: Snapshot, report: dict, count: int) -> str:
     return "".join(parts)
 
 
-def _tools(snapshot: Snapshot, report: dict, count: int, session: _VerificationSession) -> list:
+def _tools(
+    snapshot: Snapshot,
+    report: dict,
+    count: int,
+    session: _VerificationSession,
+    policy: BudgetPolicy | None = None,
+) -> list:
+    policy = policy or BudgetPolicy()
     selected = report["findings"][:count]
     lock = Lock()
 
@@ -159,7 +219,7 @@ def _tools(snapshot: Snapshot, report: dict, count: int, session: _VerificationS
                     f"{line + 1}: {lines[line]}"
                     for line in range(start_line - 1, min(end_line, len(lines)))
                 )
-                remaining = max(0, 20000 - session.read_chars)
+                remaining = max(0, policy.verify_read_chars - session.read_chars)
                 output = {"path": path, "version": version, "content": content[:remaining]}
                 output["truncated"] = len(content) > remaining
                 session.read_chars += len(output["content"])
@@ -229,9 +289,11 @@ def verify_report(
     report: dict,
     model: BaseChatModel,
     *,
-    model_calls: int = 24,
-    tool_calls: int = 32,
+    model_calls: int | None = None,
+    tool_calls: int | None = None,
     max_findings: int = 5,
+    budget: BudgetPolicy | None = None,
+    retry_unknown: bool = False,
 ) -> dict:
     """Attach advisory second-pass opinions while retaining the original findings."""
     if any(
@@ -241,37 +303,168 @@ def verify_report(
         raise ValueError("Verification snapshot does not match the review report.")
     if not 1 <= max_findings <= 10:
         raise ValueError("max_findings must be between 1 and 10")
+    policy = budget or (
+        BudgetPolicy(**report["run_manifest"]["budget"])
+        if "run_manifest" in report
+        else BudgetPolicy.for_model(model)
+    )
+    model_calls = policy.verify_model_calls if model_calls is None else model_calls
+    tool_calls = policy.verify_tool_calls if tool_calls is None else tool_calls
     if not 1 <= model_calls <= 50 or not 1 <= tool_calls <= 100:
         raise ValueError("Use 1–50 model calls and 1–100 tool calls")
+    store = None
+    if report.get("persistence"):
+        path = Path(report["persistence"])
+        if path.name != report["run_id"]:
+            raise ValueError("Verifier run path does not match run_id")
+        store = RunStore(path.parent, report["run_id"])
+        manifest, _ = store.load()
+        if (
+            manifest != report["run_manifest"]
+            or manifest["budget"] != report["run_manifest"]["budget"]
+        ):
+            raise ValueError("Verifier report does not match persisted run")
+        from dataclasses import asdict
+
+        if manifest["budget"] != asdict(policy):
+            raise ValueError("Verifier must use the same global BudgetPolicy")
+    if store:
+        current = identity(
+            snapshot,
+            model,
+            policy,
+            report["context"]["strategy"],
+            manifest["run_tests"],
+            manifest["mode"],
+        )
+        for key in ("implementation_sha256", "skills_sha256", "runner"):
+            if current[key] != manifest[key]:
+                raise ValueError("Verifier runtime or skills changed; start a new run")
+    with ExitStack() as stack:
+        if store:
+            stack.enter_context(store.locked())
+        return _verify(
+            snapshot,
+            report,
+            model,
+            model_calls,
+            tool_calls,
+            max_findings,
+            policy,
+            store,
+            retry_unknown,
+            stack,
+        )
+
+
+def _verify(
+    snapshot,
+    report,
+    model,
+    model_calls,
+    tool_calls,
+    max_findings,
+    policy,
+    store,
+    retry_unknown,
+    stack,
+):
     findings = report["findings"]
     if not findings:
         return {**report, "verification": {"status": "skipped", "reason": "no findings"}}
     count = min(len(findings), max_findings)
     session = _VerificationSession()
     started = time.monotonic()
+    backend = ReceiptStateBackend()
+    context = VerificationContext(model, backend, policy)
+    facts = VerificationFacts(
+        session,
+        None,
+        policy,
+        store,
+        serializer=_dump_verification,
+        loader=_load_verification,
+        state_key="verification_session",
+        backend=backend,
+    )
+    facts.stage_limit = tool_calls
+    accounting = ModelAccounting(
+        policy,
+        store,
+        model,
+        stage="verify",
+        stage_limit=model_calls,
+        prior=report.get("budget_usage") if store is None else None,
+    )
+    if store is None:
+        facts.attempts = report.get("budget_usage", {}).get("tool_attempts", 0)
+    checkpointer = None
+    if store:
+        from langgraph.checkpoint.sqlite import SqliteSaver
+
+        checkpointer = stack.enter_context(
+            SqliteSaver.from_conn_string(str(store.path / "checkpoint.sqlite3"))
+        )
+        if retry_unknown:
+            store.reset_unknown_checks()
     agent = create_deep_agent(
         model=model,
-        tools=_tools(snapshot, report, count, session),
+        tools=_tools(snapshot, report, count, session, policy),
         system_prompt=VERIFY_PROMPT,
-        backend=StateBackend(),
+        backend=backend,
+        state_schema=VerificationState,
+        checkpointer=checkpointer,
         middleware=[
+            context,
+            facts,
             _VerificationScope(session),
-            ModelCallLimitMiddleware(run_limit=model_calls, exit_behavior="error"),
-            ToolCallLimitMiddleware(run_limit=tool_calls, exit_behavior="error"),
+            ModelCallLimitMiddleware(thread_limit=model_calls, exit_behavior="error"),
+            ToolCallLimitMiddleware(thread_limit=tool_calls, exit_behavior="error"),
         ],
         name="pr-review-verifier",
     )
+    expected = {
+        "packet_sha256": digest(_packet(snapshot, report, count)),
+        "model": model_identity(model),
+        "policy": policy.manifest(),
+        "model_calls": model_calls,
+        "tool_calls": tool_calls,
+        "count": count,
+    }
+    config = {
+        "recursion_limit": 200,
+        "configurable": {"thread_id": report.get("run_id", "ephemeral") + "-verify"},
+        "callbacks": [accounting],
+    }
+    saved = agent.get_state(config) if store else None
+    initial = {
+        "messages": [{"role": "user", "content": _packet(snapshot, report, count)}],
+        "verification_manifest": expected,
+        "verification_session": _dump_verification(session),
+        "verification_context_requests": [],
+    }
+    if saved and saved.values:
+        if saved.values.get("verification_manifest") != expected:
+            raise ValueError("Verifier configuration or input changed; start a new review run")
+        facts.hydrate(saved.values.get("verification_session"))
+        context.requests = list(saved.values.get("verification_context_requests", []))
     try:
-        result = agent.invoke(
-            {"messages": [{"role": "user", "content": _packet(snapshot, report, count)}]}
-        )
-    except (ModelCallLimitExceededError, ToolCallLimitExceededError, APIError) as exc:
+        result = agent.invoke(None if saved and saved.values else initial, config=config)
+        facts.hydrate(result.get("verification_session"))
+    except Exception as exc:
         status = getattr(exc, "status_code", None)
         reason = type(exc).__name__ + (f" (HTTP {status})" if status else "")
-        return {
+        failed = {
             **report,
+            "budget_usage": {
+                **accounting.manifest(),
+                "tool_attempts": (
+                    store.budget_usage()["tool_attempts"] if store else facts.attempts
+                ),
+            },
             "verification": {
                 "status": "failed",
+                "resume_available": store is not None,
                 "reason": reason,
                 "rejected_submissions": session.rejected,
                 "usage": {"reported": False},
@@ -279,6 +472,9 @@ def verify_report(
                 "elapsed_seconds": round(time.monotonic() - started, 3),
             },
         }
+        if store:
+            atomic_json(store.path / "review.json", failed)
+        return failed
     if session.decisions is None:
         return {
             **report,
@@ -291,7 +487,7 @@ def verify_report(
                 "elapsed_seconds": round(time.monotonic() - started, 3),
             },
         }
-    return {
+    result_report = {
         **report,
         "verification": {
             "status": "partial" if len(findings) > count else "completed",
@@ -304,8 +500,17 @@ def verify_report(
             "trace": session.trace,
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "scope": "advisory independent model pass; not ground truth",
+            "budget": {"requests": context.requests, "policy": policy.manifest()},
+            "persistence": "SQLite checkpoint" if store else "run-local",
         },
     }
+    result_report["budget_usage"] = {
+        **accounting.manifest(),
+        "tool_attempts": store.budget_usage()["tool_attempts"] if store else facts.attempts,
+    }
+    if store:
+        atomic_json(store.path / "review.json", result_report)
+    return result_report
 
 
 def _visible_usage(messages) -> dict:

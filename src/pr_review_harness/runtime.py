@@ -1,13 +1,18 @@
 """Wire the review policy and tools into the real Deep Agents loop."""
 
+import hashlib
 import json
 import re
 import time
+from contextlib import ExitStack
 from dataclasses import asdict
+from pathlib import Path
+from posixpath import normpath
 from threading import Lock
+from typing import Literal
+from uuid import uuid4
 
 from deepagents import create_deep_agent
-from deepagents.backends import StateBackend
 from deepagents.backends.utils import create_file_data
 from langchain.agents.middleware import (
     AgentMiddleware,
@@ -15,19 +20,23 @@ from langchain.agents.middleware import (
     ToolCallLimitMiddleware,
     hook_config,
 )
-from langchain.agents.middleware.model_call_limit import ModelCallLimitExceededError
-from langchain.agents.middleware.tool_call_limit import ToolCallLimitExceededError
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import tool
-from openai import APIError
 
+from pr_review_harness.budget import DEFAULT_POLICY, BudgetPolicy
 from pr_review_harness.checks import CheckRunner
-from pr_review_harness.context import build_context
+from pr_review_harness.context_manager import ContextManager
+from pr_review_harness.execution import ExecutionPolicy
+from pr_review_harness.memory import MemoryRecall
 from pr_review_harness.models import Finding, ReviewSession
+from pr_review_harness.persistence import ModelAccounting, RunStore, atomic_json, identity
+from pr_review_harness.review_state import ExecutionUnknown, ReceiptStateBackend, ReviewFacts
 from pr_review_harness.skills import SKILLS_ROOT, skill_files
 from pr_review_harness.snapshot import Snapshot
+from pr_review_harness.state import ReviewState, dump_session, load_session
+from pr_review_harness.submission import SubmissionGuard
 
 REVIEW_PROMPT = """You review one immutable Python PR snapshot for newly introduced defects.
 Focus on logic, boundary cases and compatibility; omit style and speculative advice.
@@ -44,29 +53,102 @@ Use the provided tools; scratch filesystem tools operate only on ephemeral agent
 When useful, load the relevant short review skill through read_file; its instructions
 are a checklist to test against repository evidence, not proof of a defect.
 After a successful submit_review, finish. The harness enforces call and read budgets.
+Investigate the highest-risk changed behavior first. Submit a review once the evidence
+is sufficient; do not keep browsing for completeness after finding a defensible issue.
 """
 
 
 class ReviewToolScope(AgentMiddleware):
     """Keep this MVP in one bounded review loop, with no delegated shell execution."""
 
-    def __init__(self, session: ReviewSession):
+    def __init__(
+        self,
+        session: ReviewSession,
+        policy: BudgetPolicy | None = None,
+        accounting: ModelAccounting | None = None,
+        submission: SubmissionGuard | None = None,
+    ):
         self.session = session
+        self.decision_after = (
+            min(10, policy.model_calls - 3)
+            if policy is not None and accounting is not None and policy.model_calls >= 6
+            else None
+        )
+        self.accounting = accounting
+        self.submission = submission
+        self.decisions: list[dict] = []
 
     @hook_config(can_jump_to=["end"])
     def before_model(self, state, runtime):
+        saved = state.get("review_session")
+        if saved and saved.get("sequence", 0) >= self.session.sequence:
+            load_session(self.session, saved)
         if self.session.findings is not None:
             return {"jump_to": "end"}
         return None
 
     def wrap_model_call(self, request, handler):
         tools = [t for t in request.tools if _tool_name(t) not in {"task", "execute"}]
+        due = self.decision_after is not None and self.accounting.calls >= self.decision_after
+        self.decisions.append(
+            {
+                "accounted_model_calls": self.accounting.calls if self.accounting else None,
+                "recorded_tools": len(self.session.trace),
+                "final_submission_required": due,
+            }
+        )
+        if due:
+            tools = [t for t in tools if _tool_name(t) == "submit_review"]
+            prompt = (
+                "\n\nThe investigation window is complete. Your next action must be "
+                "submit_review. Use only verified findings on changed HEAD lines, or "
+                "submit an empty list if none are defensible. Do not request more code."
+            )
+            previous = request.system_message.content if request.system_message else ""
+            content = (
+                [*previous, {"type": "text", "text": prompt}]
+                if isinstance(previous, list)
+                else str(previous) + prompt
+            )
+            return handler(
+                request.override(
+                    tools=tools,
+                    tool_choice="submit_review",
+                    system_message=SystemMessage(content=content),
+                )
+            )
         return handler(request.override(tools=tools))
 
     def wrap_tool_call(self, request, handler):
+        closed = self.decision_after is not None and self.accounting.calls > self.decision_after
+        repairing = self.submission is not None and self.submission.control["force_submit"]
+        if (closed or repairing) and request.tool_call["name"] != "submit_review":
+            self.decisions.append(
+                {
+                    "accounted_model_calls": self.accounting.calls,
+                    "blocked_tool": request.tool_call["name"],
+                }
+            )
+            return ToolMessage(
+                content=(
+                    "Investigation window closed. Call submit_review now, "
+                    "with supported findings or an empty list."
+                ),
+                tool_call_id=request.tool_call["id"],
+            )
         if request.tool_call["name"] in {"task", "execute"}:
             return ToolMessage(
                 content="This review harness does not expose delegation or shell execution.",
+                tool_call_id=request.tool_call["id"],
+            )
+        name = request.tool_call["name"]
+        path = request.tool_call.get("args", {}).get("file_path", "")
+        normalized = normpath("/" + str(path).lstrip("/"))
+        if name in {"write_file", "edit_file", "delete_file", "delete"} and (
+            normalized == "/memories" or normalized.startswith("/memories/")
+        ):
+            return ToolMessage(
+                content="Repository feedback is read-only. Use scratch files outside /memories.",
                 tool_call_id=request.tool_call["id"],
             )
         return handler(request)
@@ -80,69 +162,243 @@ def review(
     snapshot: Snapshot,
     model: BaseChatModel,
     *,
-    memory: str = "",
-    context_chars: int = 24000,
+    memory: str | MemoryRecall = "",
+    context_chars: int = DEFAULT_POLICY.context_chars,
     context_strategy: str = "ast",
     run_tests: bool = False,
-    model_calls: int = 12,
-    tool_calls: int = 24,
+    model_calls: int = DEFAULT_POLICY.model_calls,
+    tool_calls: int = DEFAULT_POLICY.tool_calls,
     mode: str = "live",
+    budget: BudgetPolicy | None = None,
+    runs_dir: Path | None = None,
+    run_id: str | None = None,
+    resume: bool = False,
+    retry_unknown: bool = False,
+    source: dict | None = None,
+    execution: ExecutionPolicy | None = None,
 ) -> dict:
-    """Run an actual tool-calling agent and return a versioned local report."""
+    """Review fixed revisions; optional SQLite checkpoints survive a new process.
+
+    Memory is frozen at creation. A resume ignores newly supplied feedback and
+    rejects changed versions, policy, model identity, implementation or runner.
+    """
+    policy = budget or BudgetPolicy.for_model(
+        model, context_chars=context_chars, model_calls=model_calls, tool_calls=tool_calls
+    )
+    run_id = run_id or uuid4().hex
+    execution = execution or ExecutionPolicy()
+    if run_tests:
+        execution = execution.prepare()
+    if resume and runs_dir is None:
+        raise ValueError("Resume requires runs_dir")
+    store = RunStore(runs_dir, run_id) if runs_dir is not None else None
+    with ExitStack() as stack:
+        if store:
+            stack.enter_context(store.locked())
+        return _review(
+            snapshot,
+            model,
+            memory,
+            context_strategy,
+            run_tests,
+            mode,
+            policy,
+            store,
+            run_id,
+            resume,
+            retry_unknown,
+            stack,
+            source,
+            execution,
+        )
+
+
+def _review(
+    snapshot,
+    model,
+    memory,
+    strategy,
+    run_tests,
+    mode,
+    policy,
+    store,
+    run_id,
+    resume,
+    retry_unknown,
+    stack,
+    source,
+    execution,
+):
     started = time.monotonic()
-    context = build_context(snapshot, max_chars=context_chars, strategy=context_strategy)
+    expected = {
+        **identity(snapshot, model, policy, strategy, run_tests, mode, execution),
+        "source": source,
+    }
+    if resume:
+        manifest, artifacts = store.validate(expected)
+        memory = artifacts["memory"]["text"]
+        memory_manifest = {k: v for k, v in artifacts["memory"].items() if k != "text"}
+        from pr_review_harness.models import ContextItem, ContextPack
+
+        value = artifacts["context"]
+        context = ContextPack(
+            value["text"],
+            tuple(ContextItem(**i) for i in value["items"]),
+            tuple(value["omitted"]),
+            value["max_chars"],
+        )
+        if retry_unknown:
+            store.reset_unknown_checks()
+    else:
+        context = ContextManager.select(snapshot, model, policy, strategy)
+        if isinstance(memory, MemoryRecall):
+            memory_manifest = memory.manifest
+            if memory_manifest["repo_id"] != snapshot.repo_id:
+                raise ValueError("Memory snapshot belongs to a different repository")
+            memory = memory.text
+        else:
+            memory_manifest = {"provenance": "caller-supplied; no store record IDs"}
+        if len(memory) > policy.memory_chars:
+            raise ValueError(
+                "Memory snapshot exceeds BudgetPolicy.memory_chars; recall within limit"
+            )
+        memory_manifest = {**memory_manifest, "sha256": hashlib.sha256(memory.encode()).hexdigest()}
+        artifacts = {"context": asdict(context), "memory": {"text": memory, **memory_manifest}}
+        manifest = store.create(expected, artifacts) if store else {**expected, "run_id": run_id}
     session = ReviewSession()
-    checks = CheckRunner(snapshot, run_tests=run_tests)
-    lock = Lock()
-    tools = _review_tools(snapshot, session, checks, lock)
+    checks = CheckRunner(snapshot, run_tests=run_tests, execution=execution)
+    backend = ReceiptStateBackend()
+    facts = ReviewFacts(session, checks, policy, store, backend=backend)
+    manager = ContextManager(snapshot, session, context, memory, model, policy, backend)
+    manager.working.persistent = store is not None
+    accounting = ModelAccounting(
+        policy, store, model, prior=store.budget_usage() if resume and store else None
+    )
+    submission = SubmissionGuard(session, policy, accounting, facts)
+    scope = ReviewToolScope(session, policy, accounting, submission)
+    checkpointer = None
+    if store:
+        from langgraph.checkpoint.sqlite import SqliteSaver
+
+        checkpointer = stack.enter_context(
+            SqliteSaver.from_conn_string(str(store.path / "checkpoint.sqlite3"))
+        )
     agent = create_deep_agent(
         model=model,
-        tools=tools,
-        system_prompt=REVIEW_PROMPT,
-        backend=StateBackend(),
-        memory=["/memories/repository.md"],
+        tools=_review_tools(snapshot, session, checks, Lock(), policy),
+        system_prompt=REVIEW_PROMPT
+        + (
+            "\nRepository unittest execution is disabled for this run. "
+            "Use syntax checks only; do not request unittest checks.\n"
+            if not run_tests
+            else "\nRepository unittest execution is enabled for this run.\n"
+        ),
+        backend=backend,
         skills=[SKILLS_ROOT],
+        state_schema=ReviewState,
+        checkpointer=checkpointer,
         middleware=[
-            ReviewToolScope(session),
-            ModelCallLimitMiddleware(run_limit=model_calls, exit_behavior="error"),
-            ToolCallLimitMiddleware(run_limit=tool_calls, exit_behavior="error"),
+            submission,
+            manager,
+            facts,
+            scope,
+            ModelCallLimitMiddleware(thread_limit=policy.model_calls, exit_behavior="error"),
+            ToolCallLimitMiddleware(thread_limit=policy.tool_calls, exit_behavior="error"),
         ],
         name="pr-review-harness",
     )
-    try:
-        result = agent.invoke(
-            {
-                "messages": [{"role": "user", "content": context.text}],
-                "files": {
-                    "/memories/repository.md": create_file_data(
-                        memory or "No confirmed repository feedback is available."
-                    ),
-                    **skill_files(),
-                },
+    config = {
+        "recursion_limit": 200,
+        "configurable": {"thread_id": run_id},
+        "callbacks": [accounting],
+    }
+    initial = {
+        "messages": [{"role": "user", "content": context.text}],
+        "files": {
+            "/memories/repository.md": create_file_data(
+                memory or "No confirmed repository feedback is available."
+            ),
+            **skill_files(),
+        },
+        "review_session": dump_session(session),
+        "run_manifest": manifest,
+        "memory_snapshot": artifacts["memory"],
+        "context_manifest": manager.manifest(),
+        "submission_control": submission.empty(),
+    }
+    if resume:
+        saved = agent.get_state(config)
+        if not saved.values:
+            raise ValueError("No graph checkpoint exists for this run")
+        if (
+            saved.values.get("run_manifest") != manifest
+            or saved.values.get("memory_snapshot") != artifacts["memory"]
+        ):
+            raise ValueError("Checkpoint identity or memory snapshot does not match run artifacts")
+        facts.hydrate(saved.values.get("review_session"))
+        submission.hydrate(saved.values)
+        previous = saved.values.get("context_manifest", {})
+        manager.requests = list(previous.get("requests", []))
+        manager.working.refreshes = previous.get("working", {}).get("refreshes", 0)
+        manager.working.max_chars = previous.get("working", {}).get("peak_chars", 0)
+
+    def fail(reason, exc=None):
+        partial = {
+            "status": "failed",
+            "reason": reason,
+            "run_id": run_id,
+            "head_sha": snapshot.head_sha,
+            "merge_base_sha": snapshot.merge_base_sha,
+            "evidence": [asdict(item) for item in session.evidence],
+            "trace": session.trace,
+            "review_control": scope.decisions,
+            "submission": submission.manifest(),
+            "working_context": manager.working.manifest(),
+            "memory_snapshot": artifacts["memory"],
+            "budget_usage": {
+                **accounting.manifest(),
+                "tool_attempts": (
+                    store.budget_usage()["tool_attempts"] if store else facts.attempts
+                ),
             },
-            config={"recursion_limit": 80},
-        )
-    except (ModelCallLimitExceededError, ToolCallLimitExceededError, APIError) as exc:
+            "resume_available": store is not None,
+            "execution_unknown": isinstance(exc, ExecutionUnknown),
+        }
+        if store:
+            atomic_json(store.path / "failed.json", partial)
+        return ReviewFailure(reason, partial)
+
+    try:
+        result = agent.invoke(None if resume else initial, config=config)
+    except Exception as exc:
+        # Preserve an interrupted run without reporting a guessed final result.
         status = getattr(exc, "status_code", None)
         reason = f"{type(exc).__name__}" + (f" (HTTP {status})" if status else "")
-        raise ReviewFailure(
-            reason,
-            {
-                "status": "failed",
-                "reason": reason,
-                "head_sha": snapshot.head_sha,
-                "merge_base_sha": snapshot.merge_base_sha,
-                "evidence": [asdict(item) for item in session.evidence],
-                "trace": session.trace,
-            },
-        ) from None
+        raise fail(reason, exc) from exc
+    facts.hydrate(result.get("review_session"))
+    submission.hydrate(result)
     if session.findings is None:
-        raise RuntimeError("Agent finished without a valid submit_review; no report was accepted.")
+        raise fail(
+            "Agent finished without a valid submit_review: "
+            + str(submission.control.get("stop_reason"))
+        )
     messages = result["messages"]
-    usage = _usage(messages)
-    return {
+    findings = []
+    for item in session.findings:
+        value = item.model_dump()
+        value["id"] = (
+            "finding-"
+            + hashlib.sha256(
+                (run_id + json.dumps(value, sort_keys=True, ensure_ascii=False)).encode()
+            ).hexdigest()[:16]
+        )
+        findings.append(value)
+    report = {
         "schema_version": 1,
         "mode": mode,
+        "source": source,
+        "run_id": run_id,
+        "run_manifest": manifest,
         "repo_id": snapshot.repo_id,
         "repo": str(snapshot.repo),
         "base_sha": snapshot.base_sha,
@@ -151,27 +407,48 @@ def review(
         "changed_lines": {
             item.path: [list(span) for span in item.added_ranges] for item in snapshot.changed_files
         },
-        "findings": [finding.model_dump() for finding in session.findings],
+        "findings": findings,
         "rejected_findings": session.rejected,
         "evidence": [asdict(item) for item in session.evidence],
         "context": {
             "max_chars": context.max_chars,
-            "strategy": context_strategy,
+            "initial_text": context.text,
+            "sha256": manager.working.context_digest,
+            "working_state": manager.working.manifest(),
+            "memory_snapshot": artifacts["memory"],
+            "strategy": strategy,
             "used_chars": len(context.text),
             "items": [{"path": item.path, "reason": item.reason} for item in context.items],
             "omitted": list(context.omitted),
             "additional_read_chars": session.read_chars,
             "memory_chars": len(memory),
-            "available_skills": [
-                "python-boundary-regressions",
-                "python-api-compatibility",
-            ],
+            "assembly": manager.manifest(),
+            "available_skills": ["python-boundary-regressions", "python-api-compatibility"],
         },
-        "usage": usage,
+        "usage": _usage(messages),
+        "budget_usage": {
+            **accounting.manifest(),
+            "tool_attempts": (store.budget_usage()["tool_attempts"] if store else facts.attempts),
+        },
         "elapsed_seconds": round(time.monotonic() - started, 3),
+        "resumed": resume,
         "trace": session.trace,
-        "messages": [message.model_dump(mode="json") for message in messages],
+        "review_control": scope.decisions,
+        "submission": submission.manifest(),
+        "messages": [m.model_dump(mode="json") for m in messages],
+        "persistence": str(store.path) if store else None,
     }
+    if store:
+        previous_path = store.path / "review.json"
+        if resume and previous_path.exists():
+            previous_report = json.loads(previous_path.read_text())
+            if (
+                previous_report.get("run_manifest") == manifest
+                and "verification" in previous_report
+            ):
+                report["verification"] = previous_report["verification"]
+        atomic_json(store.path / "review.json", report)
+    return report
 
 
 def _usage(messages) -> dict:
@@ -201,7 +478,9 @@ class ReviewFailure(RuntimeError):
         self.partial = partial
 
 
-def _review_tools(snapshot, session, checks, lock) -> list:
+def _review_tools(snapshot, session, checks, lock, policy: BudgetPolicy | None = None) -> list:
+    policy = policy or BudgetPolicy()
+
     def record(name: str, arguments: dict, output: object) -> str:
         text = json.dumps(output, ensure_ascii=False)
         session.trace.append({"tool": name, "arguments": arguments, "output": output})
@@ -219,13 +498,25 @@ def _review_tools(snapshot, session, checks, lock) -> list:
                 text = "\n".join(
                     f"{i + 1}: {lines[i]}" for i in range(start_line - 1, min(end_line, len(lines)))
                 )
-                remaining = max(0, 40000 - session.read_chars)
+                remaining = max(0, policy.read_chars - session.read_chars)
                 output = {"path": path, "version": version, "content": text[:remaining]}
                 output["truncated"] = len(text) > remaining
+                returned = output["content"].splitlines()
+                # A partial final line is excluded from the fully returned range.
+                complete = len(returned) - int(
+                    output["truncated"] and not output["content"].endswith("\n")
+                )
+                output["returned_range"] = (
+                    [start_line, start_line + complete - 1] if complete > 0 else None
+                )
                 session.read_chars += len(output["content"])
             except (ValueError, FileNotFoundError) as exc:
                 output = {"error": str(exc)}
-            return record("read_code", {"path": path, "version": version}, output)
+            return record(
+                "read_code",
+                {"path": path, "version": version, "start_line": start_line, "end_line": end_line},
+                output,
+            )
 
     @tool
     def search_code(query: str) -> str:
@@ -252,16 +543,14 @@ def _review_tools(snapshot, session, checks, lock) -> list:
                 if len(matches) >= 12:
                     break
             output = {"matches": matches, "scope": "first 200 Python files, max 12 matches"}
-            remaining = max(0, 40000 - session.read_chars)
+            remaining = max(0, policy.read_chars - session.read_chars)
             if len(json.dumps(output)) > remaining:
                 output = {"matches": [], "truncated": True, "reason": "Read budget exhausted."}
             else:
                 session.read_chars += len(json.dumps(output))
             return record("search_code", {"query": query}, output)
 
-    @tool
-    def run_check(kind: str, path: str) -> str:
-        """Compare a syntax or unittest check on merge-base and head; return an evidence ID."""
+    def execute_check(kind: str, path: str) -> str:
         with lock:
             try:
                 evidence = checks.run(kind, path)
@@ -271,6 +560,20 @@ def _review_tools(snapshot, session, checks, lock) -> list:
             except (ValueError, FileNotFoundError) as exc:
                 output = {"error": str(exc)}
             return record("run_check", {"kind": kind, "path": path}, output)
+
+    if checks.run_tests:
+
+        @tool("run_check")
+        def run_check(kind: Literal["syntax", "unittest"], path: str) -> str:
+            """Compare a syntax or unittest check on merge-base and head; return an evidence ID."""
+            return execute_check(kind, path)
+
+    else:
+
+        @tool("run_check")
+        def run_check(kind: Literal["syntax"], path: str) -> str:
+            """Compare Python syntax on merge-base and head; return an evidence ID."""
+            return execute_check(kind, path)
 
     @tool
     def submit_review(findings: list[Finding]) -> str:

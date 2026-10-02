@@ -49,6 +49,40 @@ def test_real_harness_loop_runs_versioned_checks_and_loads_memory(tmp_path):
     assert report["usage"] == {"reported": False}
 
 
+def test_decision_window_reserves_a_submission_call():
+    from types import SimpleNamespace
+
+    from langchain.agents.middleware import ModelRequest
+    from langchain_core.messages import SystemMessage
+
+    from pr_review_harness.budget import BudgetPolicy
+    from pr_review_harness.models import ReviewSession
+    from pr_review_harness.runtime import ReviewToolScope
+
+    accounting = SimpleNamespace(calls=10)
+    scope = ReviewToolScope(ReviewSession(), BudgetPolicy(model_calls=24), accounting)
+    request = ModelRequest(
+        model=DemoChatModel(),
+        messages=[],
+        system_message=SystemMessage(content="Original rules"),
+        tools=[{"name": "read_code"}, {"name": "submit_review"}],
+    )
+    actual = scope.wrap_model_call(request, lambda value: value)
+    assert [item["name"] for item in actual.tools] == ["submit_review"]
+    assert actual.tool_choice == "submit_review"
+    assert "Original rules" in actual.system_message.content
+    assert "submit an empty list" in actual.system_message.content
+
+    accounting.calls = 11
+    attempted = []
+    blocked = scope.wrap_tool_call(
+        SimpleNamespace(tool_call={"name": "read_code", "id": "read-1"}),
+        lambda value: attempted.append(value),
+    )
+    assert attempted == []
+    assert "Call submit_review now" in blocked.content
+
+
 def test_unittest_execution_requires_explicit_flag(tmp_path):
     import pytest
 
@@ -56,6 +90,31 @@ def test_unittest_execution_requires_explicit_flag(tmp_path):
     with pytest.raises(ValueError, match="requires --run-tests"):
         CheckRunner(snapshot).run("unittest", "tests/test_pricing.py")
     assert CheckRunner(snapshot).run("syntax", "pricing.py").head.status == "passed"
+
+
+def test_check_tool_only_advertises_enabled_kinds(tmp_path):
+    from threading import Lock
+
+    from pr_review_harness.budget import BudgetPolicy
+    from pr_review_harness.models import ReviewSession
+    from pr_review_harness.runtime import _review_tools
+
+    snapshot = make_snapshot(tmp_path)
+
+    def kinds(run_tests):
+        tools = _review_tools(
+            snapshot,
+            ReviewSession(),
+            CheckRunner(snapshot, run_tests=run_tests),
+            Lock(),
+            BudgetPolicy(),
+        )
+        check = next(tool for tool in tools if tool.name == "run_check")
+        schema = check.args_schema.model_json_schema()["properties"]["kind"]
+        return schema.get("enum", [schema["const"]] if "const" in schema else [])
+
+    assert kinds(False) == ["syntax"]
+    assert kinds(True) == ["syntax", "unittest"]
 
 
 def test_finding_rejects_unchanged_locations_and_fabricated_evidence(tmp_path):
@@ -130,3 +189,21 @@ def test_changed_tests_are_not_reported_as_same_check(tmp_path):
     result = CheckRunner(current, run_tests=True).run("unittest", "tests/test_pricing.py")
     assert result.base.status == result.head.status == "passed"
     assert result.same_check is False
+
+
+def test_report_records_store_memory_and_rejects_wrong_repository(tmp_path):
+    import pytest
+
+    from pr_review_harness.memory import MemoryStore
+
+    snapshot = make_snapshot(tmp_path)
+    store = MemoryStore(tmp_path / "feedback.db")
+    record_id = store.add(snapshot.repo_id, "Confirmed discount behavior", "PR 1")
+    recalled = store.recall_snapshot(snapshot.repo_id, ["pricing.py"])
+    report = review(snapshot, DemoChatModel(), run_tests=True, memory=recalled)
+    assert report["context"]["memory_snapshot"]["records"][0]["id"] == record_id
+    assert report["context"]["memory_snapshot"]["text"] == recalled.text
+    assert report["context"]["working_state"]["refreshes"] == 3
+    assert report["trace"][0]["arguments"]["start_line"] == 1
+    with pytest.raises(ValueError, match="different repository"):
+        review(snapshot, DemoChatModel(), memory=store.recall_snapshot("another", []))

@@ -5,6 +5,43 @@ import json
 from pr_review_harness.cli import _dispatch, parser
 
 
+def test_deepseek_thinking_mode_is_explicit_and_saved_without_key(monkeypatch):
+    from pr_review_harness.cli import _live_model
+    from pr_review_harness.persistence import model_identity
+
+    monkeypatch.setenv("HARNESS_API_KEY", "test-only-secret")
+    args = parser().parse_args(
+        [
+            "benchmark",
+            "--cases",
+            "cases.json",
+            "--model",
+            "deepseek-flash",
+            "--base-url",
+            "https://api.deepseek.com",
+            "--thinking-mode",
+            "disabled",
+        ]
+    )
+    identity = model_identity(_live_model(args))
+    assert identity["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert identity["model_kwargs"] == {"parallel_tool_calls": False}
+    assert "test-only-secret" not in json.dumps(identity)
+
+
+def test_benchmark_accepts_review_limits():
+    from pr_review_harness.cli import _policy
+
+    args = parser().parse_args(
+        [
+            "benchmark", "--cases", "cases.json",
+            "--model-calls", "24", "--tool-calls", "48", "--read-chars", "80000",
+        ]
+    )
+    policy = _policy(args, None)
+    assert (policy.model_calls, policy.tool_calls, policy.read_chars) == (24, 48, 80000)
+
+
 def test_demo_verify_and_evaluate_commands(tmp_path):
     output = tmp_path / "demo"
     demo = parser().parse_args(["demo", "--verify", "--out", str(output)])
@@ -60,3 +97,142 @@ def test_demo_verify_and_evaluate_commands(tmp_path):
     }
     assert result["is_live_model_run"] is False
     assert result["eligible_for_model_quality"] is False
+
+
+def test_memory_lifecycle_commands(tmp_path):
+    from pr_review_harness.demo import create_demo
+    from pr_review_harness.memory import MemoryStore
+    from pr_review_harness.snapshot import Snapshot
+
+    repo = tmp_path / "repo"
+    create_demo(repo)
+    db = tmp_path / "memory.db"
+    common = ["--repo", str(repo), "--memory-db", str(db)]
+    assert (
+        _dispatch(
+            parser().parse_args(
+                [
+                    "memory",
+                    "add",
+                    *common,
+                    "--text",
+                    "Original rule",
+                    "--source",
+                    "PR 1",
+                    "--scope",
+                    "pricing.py",
+                ]
+            )
+        )
+        == 0
+    )
+    assert (
+        _dispatch(
+            parser().parse_args(
+                [
+                    "memory",
+                    "revise",
+                    *common,
+                    "--id",
+                    "1",
+                    "--text",
+                    "Updated rule",
+                    "--source",
+                    "PR 2",
+                    "--reason",
+                    "Clarification",
+                ]
+            )
+        )
+        == 0
+    )
+    store = MemoryStore(db)
+    repo_id = Snapshot.load(repo, "HEAD", "HEAD").repo_id
+    assert "Original rule" not in store.recall(repo_id, ["pricing.py"])
+    assert "Updated rule" in store.recall(repo_id, ["pricing.py"])
+    assert (
+        _dispatch(
+            parser().parse_args(["memory", "revoke", *common, "--id", "2", "--reason", "Retired"])
+        )
+        == 0
+    )
+    assert store.recall(repo_id, ["pricing.py"]) == ""
+
+
+def test_resume_verify_and_linked_feedback_commands(tmp_path):
+    from pr_review_harness.memory import MemoryStore
+
+    out = tmp_path / "demo"
+    runs = tmp_path / "runs"
+    db = tmp_path / "memory.db"
+    assert (
+        _dispatch(
+            parser().parse_args(
+                [
+                    "demo",
+                    "--out",
+                    str(out),
+                    "--runs-dir",
+                    str(runs),
+                    "--run-id",
+                    "cli",
+                    "--memory-db",
+                    str(db),
+                ]
+            )
+        )
+        == 0
+    )
+    first = json.loads((out / "review.json").read_text())
+    restored = tmp_path / "restored"
+    assert (
+        _dispatch(
+            parser().parse_args(
+                ["resume", "--run-id", "cli", "--runs-dir", str(runs), "--out", str(restored)]
+            )
+        )
+        == 0
+    )
+    second = json.loads((restored / "review.json").read_text())
+    assert first["evidence"] == second["evidence"]
+    verified = tmp_path / "verified"
+    assert (
+        _dispatch(
+            parser().parse_args(
+                ["verify", "--report", str(out / "review.json"), "--out", str(verified)]
+            )
+        )
+        == 0
+    )
+    assert (
+        json.loads((verified / "review.json").read_text())["verification"]["status"] == "completed"
+    )
+    assert (
+        _dispatch(
+            parser().parse_args(
+                [
+                    "memory",
+                    "feedback",
+                    "--repo",
+                    first["repo"],
+                    "--report",
+                    str(out / "review.json"),
+                    "--finding-id",
+                    first["findings"][0]["id"],
+                    "--text",
+                    "Explicit human feedback",
+                    "--source",
+                    "PR comment",
+                    "--rule-key",
+                    "pricing.discount",
+                    "--memory-db",
+                    str(db),
+                ]
+            )
+        )
+        == 0
+    )
+    record = MemoryStore(db).list_records(first["repo_id"])[0]
+    assert record["source_run_id"] == "cli"
+    assert record["finding_id"] == first["findings"][0]["id"]
+    assert record["disposition"] == "dismissed"

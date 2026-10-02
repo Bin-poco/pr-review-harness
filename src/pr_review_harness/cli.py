@@ -7,10 +7,16 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from pr_review_harness.automation import parse_event
+from pr_review_harness.benchmark import run_benchmark
+from pr_review_harness.budget import DEFAULT_POLICY, BudgetPolicy
 from pr_review_harness.context import build_context
 from pr_review_harness.demo import create_demo
 from pr_review_harness.evaluation import evaluate_report, load_gold
+from pr_review_harness.execution import ExecutionPolicy
+from pr_review_harness.github import PRRef, configured_client, fetch_snapshot, publish_report
 from pr_review_harness.memory import MemoryStore
+from pr_review_harness.persistence import RunStore, atomic_json
 from pr_review_harness.report import write_report
 from pr_review_harness.runtime import DemoChatModel, ReviewFailure, review
 from pr_review_harness.snapshot import Snapshot
@@ -26,44 +32,233 @@ def parser() -> argparse.ArgumentParser:
         "--live", action="store_true", help="Use a configured live model on the example"
     )
     demo.add_argument("--verify", action="store_true", help="Run an independent second pass")
+    demo.add_argument("--runs-dir", type=Path, default=Path(".pr-harness/runs"))
+    demo.add_argument("--run-id")
+    _execution_arguments(demo, default="local")
+    _budget_arguments(demo)
     _model_arguments(demo)
     actual = commands.add_parser("review", help="Review immutable local Git revisions with an LLM")
-    _snapshot_arguments(actual)
-    actual.add_argument("--out", type=Path, default=Path("outputs/review"))
-    actual.add_argument(
-        "--run-tests", action="store_true", help="Execute repository unittest code locally"
-    )
-    actual.add_argument("--context-chars", type=int, default=24000)
-    actual.add_argument("--context-strategy", choices=["ast", "imports"], default="ast")
-    actual.add_argument("--model-calls", type=int, default=12)
-    actual.add_argument("--tool-calls", type=int, default=24)
-    actual.add_argument("--verify", action="store_true", help="Run an independent second pass")
-    actual.add_argument("--verify-max-findings", type=int, default=5)
-    actual.add_argument("--verify-model-calls", type=int, default=24)
-    actual.add_argument("--verify-tool-calls", type=int, default=32)
+    _review_arguments(actual)
+    _budget_arguments(actual)
     _model_arguments(actual)
+    github = commands.add_parser(
+        "github-review", help="Fetch and review a GitHub PR; no publishing"
+    )
+    _github_arguments(github)
+    _review_arguments(github, remote=True)
+    _budget_arguments(github)
+    _model_arguments(github)
+    ci = commands.add_parser("github-ci", help="Review a validated Actions event; default preview")
+    ci.add_argument("--event-file", type=Path, required=True)
+    ci.add_argument("--repository", required=True, help="Trusted GITHUB_REPOSITORY")
+    ci.add_argument("--event-name", default=os.getenv("GITHUB_EVENT_NAME"))
+    ci.add_argument("--cache-dir", type=Path, default=Path(".pr-harness/github"))
+    ci.add_argument("--send", action="store_true", help="Opt in to automatic COMMENT publication")
+    ci.add_argument("--publications-dir", type=Path, default=Path(".pr-harness/publications"))
+    _review_arguments(ci, remote=True)
+    _budget_arguments(ci)
+    _model_arguments(ci)
+    fetch = commands.add_parser(
+        "github-fetch", help="Fetch pinned GitHub PR context without a model"
+    )
+    _github_arguments(fetch)
+    fetch.add_argument("--out", type=Path, default=Path("outputs/github-input"))
+    fetch.add_argument("--max-chars", type=int, default=DEFAULT_POLICY.context_chars)
+    publish = commands.add_parser("github-publish", help="Preview a saved review; --send posts it")
+    publish.add_argument("--report", type=Path, required=True)
+    publish.add_argument("--out", type=Path, default=Path("outputs/github-publication"))
+    publish.add_argument("--publications-dir", type=Path, default=Path(".pr-harness/publications"))
+    publish.add_argument("--send", action="store_true", help="Publish COMMENT review to GitHub")
+    publish.add_argument("--retry-unknown", action="store_true")
+    resume = commands.add_parser(
+        "resume", help="Resume the exact saved run from SQLite checkpoints"
+    )
+    resume.add_argument("--run-id", required=True)
+    resume.add_argument("--runs-dir", type=Path, default=Path(".pr-harness/runs"))
+    resume.add_argument("--out", type=Path, default=Path("outputs/resumed-review"))
+    resume.add_argument("--head", help="Optional expected head SHA/ref; mismatch refuses recovery")
+    resume.add_argument(
+        "--retry-unknown",
+        action="store_true",
+        help="Explicitly rerun tools whose durable results are missing",
+    )
+    _model_arguments(resume)
+    verify = commands.add_parser("verify", help="Run or resume the saved review's second stage")
+    verify.add_argument("--report", type=Path, required=True)
+    verify.add_argument("--out", type=Path, default=Path("outputs/verified-review"))
+    verify.add_argument("--model-calls", type=int, help="Default: saved verifier stage budget")
+    verify.add_argument("--tool-calls", type=int, help="Default: saved verifier stage budget")
+    verify.add_argument("--max-findings", type=int, default=5)
+    verify.add_argument("--retry-unknown", action="store_true")
+    _model_arguments(verify)
+    benchmark = commands.add_parser(
+        "benchmark", help="Run fixed PR cases with controlled ablations"
+    )
+    benchmark.add_argument("--cases", type=Path, required=True)
+    benchmark.add_argument("--out", type=Path, default=Path("outputs/benchmark"))
+    benchmark.add_argument("--model-calls", type=int, default=DEFAULT_POLICY.model_calls)
+    benchmark.add_argument("--tool-calls", type=int, default=DEFAULT_POLICY.tool_calls)
+    benchmark.add_argument(
+        "--variants", nargs="+", choices=["baseline", "working", "memory", "both"]
+    )
+    benchmark.add_argument(
+        "--scripted", action="store_true", help="Offline plumbing only, no quality claim"
+    )
+    _model_arguments(benchmark)
+    _budget_arguments(benchmark)
     evaluation = commands.add_parser("evaluate", help="Score a saved report against human labels")
     evaluation.add_argument("--report", type=Path, required=True)
     evaluation.add_argument("--gold", type=Path, required=True)
     evaluation.add_argument("--out", type=Path, help="Directory for evaluation.json")
     context = commands.add_parser("context", help="Inspect selected context without calling an LLM")
     _snapshot_arguments(context)
-    context.add_argument("--max-chars", type=int, default=24000)
+    context.add_argument("--max-chars", type=int, default=DEFAULT_POLICY.context_chars)
     context.add_argument("--strategy", choices=["ast", "imports"], default="ast")
     memory = commands.add_parser("memory", help="Add or inspect explicit maintainer feedback")
     memories = memory.add_subparsers(dest="memory_command", required=True)
     add = memories.add_parser("add")
-    add.add_argument("--repo", type=Path, required=True)
+    _memory_repository_arguments(add)
     add.add_argument("--text", required=True)
     add.add_argument("--source", required=True, help="PR/comment URL or local feedback reference")
     add.add_argument("--scope", default="*")
+    add.add_argument("--rule-key", help="Explicit topic key used for potential-conflict groups")
     add.add_argument("--ttl-days", type=int, default=90)
     add.add_argument("--disposition", choices=["accepted", "dismissed"], default="accepted")
+    feedback = memories.add_parser(
+        "feedback", help="Record human feedback linked to a saved review"
+    )
+    _memory_repository_arguments(feedback)
+    feedback.add_argument("--report", type=Path, required=True)
+    feedback.add_argument("--finding-id", help="Stable finding ID from review.json")
+    feedback.add_argument("--text", required=True)
+    feedback.add_argument("--source", required=True)
+    feedback.add_argument("--scope")
+    feedback.add_argument("--rule-key")
+    feedback.add_argument("--ttl-days", type=int, default=90)
+    feedback.add_argument("--disposition", choices=["accepted", "dismissed"], default="dismissed")
     listing = memories.add_parser("list")
-    listing.add_argument("--repo", type=Path, required=True)
-    for command in (add, listing, actual, demo):
+    _memory_repository_arguments(listing)
+    revise = memories.add_parser("revise", help="Replace feedback and retain its history")
+    revise.add_argument("--rule-key", help="Defaults to previous topic key")
+    revise.add_argument("--text", required=True)
+    revise.add_argument("--source", required=True)
+    revise.add_argument("--scope", default=None, help="Defaults to the previous record scope")
+    revise.add_argument("--ttl-days", type=int, default=90)
+    revise.add_argument("--disposition", choices=["accepted", "dismissed"], default=None)
+    revoke = memories.add_parser("revoke", help="Exclude feedback from future reviews")
+    for command in (revise, revoke):
+        _memory_repository_arguments(command)
+        command.add_argument("--id", type=int, required=True)
+        command.add_argument("--reason", required=True)
+    for command in (add, feedback, listing, revise, revoke, actual, demo, github, ci):
         command.add_argument("--memory-db", type=Path, default=Path(".pr-harness/memory.sqlite3"))
     return root
+
+
+def _github_arguments(command):
+    command.add_argument("--pr", required=True, help="https://github.com/OWNER/REPO/pull/123")
+    command.add_argument("--cache-dir", type=Path, default=Path(".pr-harness/github"))
+
+
+def _memory_repository_arguments(command):
+    repository = command.add_mutually_exclusive_group(required=True)
+    repository.add_argument("--repo", type=Path, help="Local repository identity")
+    repository.add_argument("--pr", help="GitHub PR URL; share feedback by GitHub repository ID")
+    command.add_argument("--cache-dir", type=Path, default=Path(".pr-harness/github"))
+
+
+def _review_arguments(command, *, remote=False):
+    if not remote:
+        _snapshot_arguments(command)
+    command.add_argument(
+        "--run-tests", action="store_true", help="Allow bounded repository unittest execution"
+    )
+    _execution_arguments(command)
+    if remote:
+        command.add_argument("--expected-head", help="Refuse a PR event whose head SHA changed")
+    command.add_argument("--out", type=Path, default=Path("outputs/review"))
+    command.add_argument("--context-chars", type=int, default=DEFAULT_POLICY.context_chars)
+    command.add_argument("--context-strategy", choices=["ast", "imports"], default="ast")
+    command.add_argument("--model-calls", type=int, default=DEFAULT_POLICY.model_calls)
+    command.add_argument("--tool-calls", type=int, default=DEFAULT_POLICY.tool_calls)
+    command.add_argument("--verify", action="store_true", help="Run an independent second pass")
+    command.add_argument("--verify-max-findings", type=int, default=5)
+    command.add_argument(
+        "--verify-model-calls", type=int, default=DEFAULT_POLICY.verify_model_calls
+    )
+    command.add_argument("--verify-tool-calls", type=int, default=DEFAULT_POLICY.verify_tool_calls)
+    command.add_argument("--runs-dir", type=Path, default=Path(".pr-harness/runs"))
+    command.add_argument("--run-id")
+
+
+def _execution_arguments(command, *, default="docker"):
+    command.add_argument("--test-backend", choices=["local", "docker"], default=default)
+    command.add_argument("--test-image", default="python:3.12-slim")
+    command.add_argument("--test-timeout", type=int, default=20)
+    command.add_argument("--test-memory-mb", type=int, default=256)
+    command.add_argument("--test-cpus", type=float, default=1.0)
+    command.add_argument("--test-pids", type=int, default=64)
+
+
+def _execution_policy(arguments):
+    return ExecutionPolicy(
+        backend=arguments.test_backend,
+        image=arguments.test_image,
+        timeout=arguments.test_timeout,
+        memory_mb=arguments.test_memory_mb,
+        cpus=arguments.test_cpus,
+        pids=arguments.test_pids,
+    )
+
+
+def _budget_arguments(command):
+    command.add_argument(
+        "--submission-repairs",
+        type=int,
+        default=DEFAULT_POLICY.submission_repairs,
+        help="Maximum final-output corrections within existing call budgets (0–5)",
+    )
+    command.add_argument("--read-chars", type=int, default=DEFAULT_POLICY.read_chars)
+    command.add_argument("--window-tokens", type=int, help="Explicit verified model context window")
+    command.add_argument("--output-tokens", type=int, default=DEFAULT_POLICY.output_tokens)
+    command.add_argument(
+        "--request-chars",
+        type=int,
+        default=DEFAULT_POLICY.request_chars,
+        help="Complete request cap when the model window is unknown",
+    )
+    command.add_argument(
+        "--total-model-calls",
+        type=int,
+        default=DEFAULT_POLICY.total_model_calls,
+        help="Global review/summary/verifier attempt limit, preserved on resume",
+    )
+    command.add_argument("--total-tool-calls", type=int, default=DEFAULT_POLICY.total_tool_calls)
+    command.add_argument(
+        "--no-working-state", action="store_true", help="Ablation: omit factual ledger"
+    )
+    command.add_argument("--no-memory", action="store_true", help="Ablation: omit human feedback")
+
+
+def _policy(arguments, model):
+    return BudgetPolicy.for_model(
+        model,
+        context_chars=getattr(arguments, "context_chars", DEFAULT_POLICY.context_chars),
+        model_calls=getattr(arguments, "model_calls", DEFAULT_POLICY.model_calls),
+        tool_calls=getattr(arguments, "tool_calls", DEFAULT_POLICY.tool_calls),
+        read_chars=arguments.read_chars,
+        verify_model_calls=getattr(
+            arguments, "verify_model_calls", DEFAULT_POLICY.verify_model_calls
+        ),
+        verify_tool_calls=getattr(arguments, "verify_tool_calls", DEFAULT_POLICY.verify_tool_calls),
+        window_tokens=arguments.window_tokens,
+        output_tokens=arguments.output_tokens,
+        request_chars=arguments.request_chars,
+        total_model_calls=arguments.total_model_calls,
+        total_tool_calls=arguments.total_tool_calls,
+        working_state=not arguments.no_working_state,
+        submission_repairs=arguments.submission_repairs,
+    )
 
 
 def _snapshot_arguments(command) -> None:
@@ -76,6 +271,7 @@ def _model_arguments(command) -> None:
     command.add_argument("--model", default=os.getenv("HARNESS_MODEL"))
     command.add_argument("--base-url", default=os.getenv("HARNESS_BASE_URL"))
     command.add_argument("--api-key-env", default="HARNESS_API_KEY")
+    command.add_argument("--thinking-mode", choices=["enabled", "disabled"])
 
 
 def _live_model(arguments):
@@ -88,15 +284,20 @@ def _live_model(arguments):
         raise ValueError(
             f"Set {arguments.api_key_env} (or OPENAI_API_KEY); do not pass keys on CLI."
         )
+    options = {}
+    if arguments.thinking_mode:
+        options["extra_body"] = {"thinking": {"type": arguments.thinking_mode}}
     return ChatOpenAI(
         model=arguments.model,
         api_key=key,
         base_url=arguments.base_url,
         temperature=0,
-        max_tokens=4096,
+        max_tokens=getattr(arguments, "output_tokens", DEFAULT_POLICY.output_tokens),
         timeout=60,
         max_retries=1,
         use_responses_api=False,
+        model_kwargs={"parallel_tool_calls": False},
+        **options,
     )
 
 
@@ -117,24 +318,168 @@ def main() -> int:
 
 
 def _dispatch(arguments) -> int:
+    event = None
+    if arguments.command == "github-ci":
+        if arguments.run_tests:
+            raise ValueError("Credential-bearing GitHub CI permits syntax checks only")
+        if arguments.event_file.stat().st_size > 2_000_000:
+            raise ValueError("GitHub event exceeds the supported size")
+        event = parse_event(
+            json.loads(arguments.event_file.read_text(encoding="utf-8")),
+            repository=arguments.repository,
+            event_name=arguments.event_name,
+        )
+        if event.skip_reason:
+            atomic_json(
+                arguments.out / "automation.json",
+                {
+                    "status": "skipped",
+                    "reason": event.skip_reason,
+                },
+            )
+            print(f"Automation skipped: {event.skip_reason}")
+            return 0
+        arguments.pr = event.ref.url
+    if arguments.command == "github-fetch":
+        snapshot, source = fetch_snapshot(
+            PRRef.parse(arguments.pr), configured_client(), arguments.cache_dir
+        )
+        context = build_context(snapshot, max_chars=arguments.max_chars)
+        arguments.out.mkdir(parents=True, exist_ok=True)
+        atomic_json(
+            arguments.out / "snapshot.json",
+            {
+                "source": source,
+                "repo": str(snapshot.repo),
+                "repo_id": snapshot.repo_id,
+                "base_sha": snapshot.base_sha,
+                "head_sha": snapshot.head_sha,
+                "merge_base_sha": snapshot.merge_base_sha,
+            },
+        )
+        (arguments.out / "context.txt").write_text(context.text, encoding="utf-8")
+        print(f"PR snapshot: {(arguments.out / 'snapshot.json').resolve()}")
+        return 0
+    if arguments.command == "github-publish":
+        report = json.loads(arguments.report.read_text(encoding="utf-8"))
+        result = publish_report(
+            report,
+            configured_client(),
+            arguments.publications_dir,
+            send=arguments.send,
+            retry_unknown=arguments.retry_unknown,
+        )
+        atomic_json(arguments.out / "publication.json", result)
+        print(f"Publication: {result['status']}; {(arguments.out / 'publication.json').resolve()}")
+        return 0
+    if arguments.command == "benchmark":
+        model = DemoChatModel() if arguments.scripted else _live_model(arguments)
+        result = run_benchmark(
+            arguments.cases,
+            model,
+            _policy(arguments, model),
+            arguments.out,
+            variants=arguments.variants,
+            scripted=arguments.scripted,
+        )
+        print(f"Benchmark: {result}")
+        return 0
+    if arguments.command == "verify":
+        report = json.loads(arguments.report.read_text(encoding="utf-8"))
+        policy = BudgetPolicy(**report["run_manifest"]["budget"])
+        if report["mode"] == "scripted-demo":
+            model = DemoVerifierModel()
+        else:
+            arguments.model = arguments.model or report["run_manifest"]["model"].get("model_name")
+            arguments.base_url = arguments.base_url or report["run_manifest"]["model"].get(
+                "openai_api_base"
+            )
+            arguments.output_tokens = policy.output_tokens
+            model = _live_model(arguments)
+        snapshot = Snapshot.load(
+            Path(report["repo"]),
+            report["base_sha"],
+            report["head_sha"],
+            repository_identity=report["run_manifest"].get("repository_identity"),
+        )
+        verified = verify_report(
+            snapshot,
+            report,
+            model,
+            budget=policy,
+            model_calls=arguments.model_calls,
+            tool_calls=arguments.tool_calls,
+            max_findings=arguments.max_findings,
+            retry_unknown=arguments.retry_unknown,
+        )
+        paths = write_report(verified, arguments.out)
+        print(f"Verification: {verified['verification']['status']}; report: {paths[1].resolve()}")
+        return 1 if verified["verification"]["status"] == "failed" else 0
+    if arguments.command == "resume":
+        store = RunStore(arguments.runs_dir, arguments.run_id)
+        manifest, _ = store.load()
+        policy = BudgetPolicy(**manifest["budget"])
+        snapshot = Snapshot.load(
+            Path(manifest["repo"]),
+            manifest["base_sha"],
+            arguments.head or manifest["head_sha"],
+            repository_identity=manifest.get("repository_identity"),
+        )
+        if manifest["mode"] == "scripted-demo":
+            model = DemoChatModel()
+        else:
+            arguments.model = arguments.model or manifest["model"].get("model_name")
+            arguments.base_url = arguments.base_url or manifest["model"].get("openai_api_base")
+            arguments.output_tokens = policy.output_tokens
+            model = _live_model(arguments)
+        report = review(
+            snapshot,
+            model,
+            budget=policy,
+            context_strategy=manifest["strategy"],
+            run_tests=manifest["run_tests"],
+            mode=manifest["mode"],
+            runs_dir=arguments.runs_dir,
+            run_id=arguments.run_id,
+            resume=True,
+            retry_unknown=arguments.retry_unknown,
+            source=manifest.get("source"),
+            execution=ExecutionPolicy.from_manifest(manifest.get("execution")),
+        )
+        paths = write_report(report, arguments.out)
+        print(f"Run: {report['run_id']}")
+        print(f"Report: {paths[1].resolve()}")
+        return 0
     if arguments.command == "demo":
         output = arguments.out or Path("outputs") / datetime.now().strftime("demo-%Y%m%d-%H%M%S")
         base, head = create_demo(output / "repo")
         snapshot = Snapshot.load(output / "repo", base, head)
         model = _live_model(arguments) if arguments.live else DemoChatModel()
         mode = "live" if arguments.live else "scripted-demo"
-        memory = MemoryStore(arguments.memory_db).recall(
+        policy = _policy(arguments, model)
+        memory = MemoryStore(arguments.memory_db).recall_snapshot(
             snapshot.repo_id, [item.path for item in snapshot.changed_files]
         )
-        report = review(snapshot, model, memory=memory, run_tests=True, mode=mode)
+        report = review(
+            snapshot,
+            model,
+            memory="" if arguments.no_memory else memory,
+            run_tests=True,
+            execution=_execution_policy(arguments),
+            mode=mode,
+            budget=policy,
+            runs_dir=arguments.runs_dir,
+            run_id=arguments.run_id,
+        )
         paths = write_report(report, output)
         if arguments.verify:
             verifier = model if arguments.live else DemoVerifierModel()
-            report = verify_report(snapshot, report, verifier)
+            report = verify_report(snapshot, report, verifier, budget=policy)
             paths = write_report(report, output)
+        print(f"Run: {report['run_id']}")
         print(f"Report: {paths[1].resolve()}")
         print(f"Evidence and trace: {paths[0].resolve()}")
-        return 0
+        return 1 if report.get("verification", {}).get("status") == "failed" else 0
     if arguments.command == "evaluate":
         report = json.loads(arguments.report.read_text(encoding="utf-8"))
         result = evaluate_report(report, load_gold(arguments.gold))
@@ -148,10 +493,45 @@ def _dispatch(arguments) -> int:
             print(rendered)
         return 0
     if arguments.command == "memory":
-        snapshot = Snapshot.load(arguments.repo, "HEAD", "HEAD")
+        if arguments.pr:
+            snapshot, _ = fetch_snapshot(
+                PRRef.parse(arguments.pr), configured_client(), arguments.cache_dir
+            )
+        else:
+            snapshot = Snapshot.load(arguments.repo, "HEAD", "HEAD")
         store = MemoryStore(arguments.memory_db)
         if arguments.memory_command == "list":
             print(json.dumps(store.list_records(snapshot.repo_id), ensure_ascii=False, indent=2))
+        elif arguments.memory_command == "feedback":
+            report = json.loads(arguments.report.read_text(encoding="utf-8"))
+            record_id = store.add_feedback(
+                snapshot.repo_id,
+                report,
+                arguments.text,
+                arguments.source,
+                finding_id=arguments.finding_id,
+                path_glob=arguments.scope,
+                ttl_days=arguments.ttl_days,
+                disposition=arguments.disposition,
+                rule_key=arguments.rule_key,
+            )
+            print(f"Saved linked feedback: {record_id}")
+        elif arguments.memory_command == "revoke":
+            store.revoke(snapshot.repo_id, arguments.id, reason=arguments.reason)
+            print(f"Revoked feedback: {arguments.id}")
+        elif arguments.memory_command == "revise":
+            record_id = store.revise(
+                snapshot.repo_id,
+                arguments.id,
+                arguments.text,
+                arguments.source,
+                reason=arguments.reason,
+                path_glob=arguments.scope,
+                ttl_days=arguments.ttl_days,
+                disposition=arguments.disposition,
+                rule_key=arguments.rule_key,
+            )
+            print(f"Replaced feedback {arguments.id} with: {record_id}")
         else:
             record_id = store.add(
                 snapshot.repo_id,
@@ -160,10 +540,23 @@ def _dispatch(arguments) -> int:
                 path_glob=arguments.scope,
                 ttl_days=arguments.ttl_days,
                 disposition=arguments.disposition,
+                rule_key=arguments.rule_key,
             )
             print(f"Saved feedback: {record_id}")
         return 0
-    snapshot = Snapshot.load(arguments.repo, arguments.base, arguments.head)
+    source = None
+    if arguments.command in {"github-review", "github-ci"}:
+        if arguments.run_tests and arguments.test_backend != "docker":
+            raise ValueError("GitHub repository tests require --test-backend docker")
+        snapshot, source = fetch_snapshot(
+            PRRef.parse(arguments.pr), configured_client(), arguments.cache_dir
+        )
+        if arguments.expected_head and arguments.expected_head != snapshot.head_sha:
+            raise ValueError("PR head changed since the triggering event; start a new run")
+        if event:
+            event.validate_source(source)
+    else:
+        snapshot = Snapshot.load(arguments.repo, arguments.base, arguments.head)
     if arguments.command == "context":
         print(
             build_context(snapshot, max_chars=arguments.max_chars, strategy=arguments.strategy).text
@@ -175,19 +568,25 @@ def _dispatch(arguments) -> int:
         raise ValueError("Use 1–10 verifier findings.")
     if not 1 <= arguments.verify_model_calls <= 50 or not 1 <= arguments.verify_tool_calls <= 100:
         raise ValueError("Use 1–50 verifier model calls and 1–100 verifier tool calls.")
-    memory = MemoryStore(arguments.memory_db).recall(
+    memory = MemoryStore(arguments.memory_db).recall_snapshot(
         snapshot.repo_id, [item.path for item in snapshot.changed_files]
     )
     model = _live_model(arguments)
+    policy = _policy(arguments, model)
     report = review(
         snapshot,
         model,
-        memory=memory,
+        memory="" if arguments.no_memory else memory,
+        budget=policy,
+        runs_dir=arguments.runs_dir,
+        run_id=arguments.run_id,
         run_tests=arguments.run_tests,
+        execution=_execution_policy(arguments),
         context_chars=arguments.context_chars,
         context_strategy=arguments.context_strategy,
         model_calls=arguments.model_calls,
         tool_calls=arguments.tool_calls,
+        source=source,
     )
     paths = write_report(report, arguments.out)
     if arguments.verify:
@@ -198,10 +597,31 @@ def _dispatch(arguments) -> int:
             model_calls=arguments.verify_model_calls,
             tool_calls=arguments.verify_tool_calls,
             max_findings=arguments.verify_max_findings,
+            budget=policy,
         )
         paths = write_report(report, arguments.out)
+    print(f"Run: {report['run_id']}")
     print(f"Report: {paths[1].resolve()}")
     print(f"Evidence and trace: {paths[0].resolve()}")
+    if event:
+        if report.get("verification", {}).get("status") == "failed":
+            raise ValueError("Independent verification failed; automatic publication refused")
+        publication = publish_report(
+            report,
+            configured_client(),
+            arguments.publications_dir,
+            send=arguments.send,
+        )
+        atomic_json(arguments.out / "publication.json", publication)
+        atomic_json(
+            arguments.out / "automation.json",
+            {
+                "status": "completed",
+                "publication": publication["status"],
+                "head_sha": report["head_sha"],
+                "run_id": report["run_id"],
+            },
+        )
     return 0
 
 

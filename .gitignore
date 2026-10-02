@@ -5,6 +5,9 @@ __pycache__/
 dist/
 *.egg-info/
 .env
+.env.*
+!.env.example
+.DS_Store
 .pr-harness/
 outputs/
 *.sqlite3*

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "label_revision": 2,
+  "repository": {
+    "name": "pallets/click",
+    "url": "https://github.com/pallets/click.git"
+  },
+  "cases": [
+    {
+      "id": "click-2934-stdin-eof-regression",
+      "source_pr": "https://github.com/pallets/click/pull/2934",
+      "confirmation_issue": "https://github.com/pallets/click/issues/2939",
+      "fix_pr": "https://github.com/pallets/click/pull/2940",
+      "base_sha": "cfa6f4ad3e0078db43f866246b483544afa33ed3",
+      "head_sha": "80efdf6c10c51884416d11b3b575f61157af77fa",
+      "merge_base_sha": "cfa6f4ad3e0078db43f866246b483544afa33ed3",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "global-iterator-eof-conversion",
+          "path": "src/click/testing.py",
+          "start_line": 119,
+          "end_line": 124,
+          "description": "_NamedTextIOWrapper.__next__ globally converts normal iterator exhaustion into EOFError. Iterating a click.File('-') argument inside CliRunner therefore aborts after consuming the final line."
+        }
+      ]
+    },
+    {
+      "id": "click-1572-pager-closes-stdout",
+      "source_pr": "https://github.com/pallets/click/pull/1572",
+      "confirmation_issue": "https://github.com/pallets/click/issues/3449",
+      "fix_pr": "https://github.com/pallets/click/pull/3482",
+      "base_sha": "c5cced7b3096804567688df645194e3ed3dfa88b",
+      "head_sha": "9cbbf10782d555d6995ef8969276d6a89792bc0c",
+      "merge_base_sha": "c5cced7b3096804567688df645194e3ed3dfa88b",
+      "expected_reproducer": {"base": "pass", "head": "fail"},
+      "findings": [
+        {
+          "id": "pager-wrapper-owns-captured-stdout",
+          "path": "src/click/_termui_impl.py",
+          "start_line": 421,
+          "end_line": 423,
+          "description": "get_pager_file wraps an existing text stream's buffer in a new owning TextIOWrapper. In CliRunner's non-TTY path, the pager can close the captured stdout buffer, and invoke then raises ValueError while flushing it."
+        },
+        {
+          "id": "pager-text-fallback-wrapped-as-binary",
+          "path": "src/click/_termui_impl.py",
+          "start_line": 424,
+          "end_line": 426,
+          "description": "When no standard output stream is available, the fallback StringIO is wrapped in MaybeStripAnsi (a TextIOWrapper for binary streams). Writing through the pager raises TypeError; the base revision completes without error.",
+          "provenance": "Candidate found in first model batch; independently reproduced against pinned base and head before label revision 2."
+        }
+      ]
+    },
+    {
+      "id": "click-2940-stdin-eof-fix",
+      "source_pr": "https://github.com/pallets/click/pull/2940",
+      "confirmation_issue": "https://github.com/pallets/click/issues/2939",
+      "base_sha": "36deba8a95a2585de1a2aa4475b7f054f52830ac",
+      "head_sha": "e11a1efc3395e998a1521a0dc35672a799e78d30",
+      "merge_base_sha": "36deba8a95a2585de1a2aa4475b7f054f52830ac",
+      "expected_reproducer": {"base": "fail", "head": "pass"},
+      "findings": []
+    }
+  ]
+}

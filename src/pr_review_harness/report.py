@@ -1,14 +1,26 @@
 """Write human-readable findings next to their machine-readable evidence."""
 
-import json
 from pathlib import Path
+
+from pr_review_harness.persistence import atomic_json
 
 
 def write_report(report: dict, output: Path) -> tuple[Path, Path]:
     output.mkdir(parents=True, exist_ok=True)
     json_path, markdown_path = output / "review.json", output / "review.md"
-    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    markdown_path.write_text(render_markdown(report), encoding="utf-8")
+    atomic_json(json_path, report)
+    import os
+    import tempfile
+
+    fd, tmp = tempfile.mkstemp(prefix=".review-", dir=output)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(render_markdown(report))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, markdown_path)
+    finally:
+        Path(tmp).unlink(missing_ok=True)
     return json_path, markdown_path
 
 
@@ -34,6 +46,8 @@ def render_markdown(report: dict) -> str:
             "",
         ]
     )
+    if (report.get("source") or {}).get("kind") == "github":
+        lines.insert(2, f"PR：{report['source']['url']}\n")
     if not report["findings"]:
         lines.extend(["未提交可报告的缺陷；这不代表已经证明没有缺陷。", ""])
     for finding in report["findings"]:
@@ -108,6 +122,27 @@ def render_markdown(report: dict) -> str:
             fence = "`" * max(3, _longest_backticks(output) + 1)
             lines.extend([f"{version} 输出：", "", fence + "text", output, fence, ""])
     context = report["context"]
+    execution = report.get("run_manifest", {}).get("execution", {})
+    if execution.get("enabled"):
+        lines.extend(["## 测试执行环境", ""])
+        if execution["backend"] == "docker":
+            lines.extend(
+                [
+                    f"- Docker 镜像：`{execution['image_id']}`（{execution['platform']}）。",
+                    "- 无网络、只读根目录与代码挂载、非 root、无 API 密钥。",
+                    f"- 每个版本限时 {execution['timeout']} 秒，"
+                    f"内存 {execution['memory_mb']} MiB，CPU {execution['cpus']}，"
+                    f"进程上限 {execution['pids']}。",
+                ]
+            )
+        else:
+            lines.append("- 本机执行，仅适用于受信任测试；没有容器隔离。")
+        lines.extend(
+            [
+                f"- 输出仅保留末尾 {execution['output_bytes']} 字节；测试输出仍须结合代码核对。",
+                "",
+            ]
+        )
     lines.extend(
         [
             "## 运行记录",
@@ -121,6 +156,43 @@ def render_markdown(report: dict) -> str:
             f"{report['usage'] if report['usage']['reported'] else '模型未提供'}。",
         ]
     )
+    working = context.get("working_state")
+    if working:
+        lines.append(
+            f"- 审查状态：每轮刷新，共 {working['refreshes']} 次；"
+            f"峰值 {working['peak_chars']} / {working['max_chars']} 字符。"
+        )
+    memory = context.get("memory_snapshot", {})
+    if "records" in memory:
+        ids = ", ".join(str(record["id"]) for record in memory["records"]) or "无"
+        lines.append(f"- 冻结召回记忆 ID：{ids}；召回预算省略 {memory['omitted_count']} 条。")
+        lines.append(f"- 记忆快照摘要：`{memory['sha256']}`。")
+    if report.get("run_id"):
+        lines.append(f"- 运行 ID：`{report['run_id']}`；恢复：{report.get('resumed', False)}。")
+    submission = report.get("submission")
+    if submission:
+        lines.append(
+            f"- 结构化提交：{submission['outcome']}；"
+            f"纠正请求 {submission['repair_requests']} / {submission['repair_limit']} 次。"
+        )
+    assembly = context.get("assembly", {})
+    if assembly:
+        policy = assembly["policy"]
+        lines.append(
+            f"- 完整请求预算：{policy['input_limit']}（{policy['mode']}）；"
+            f"窗口来源：{policy['window_source']}。"
+        )
+        displayed = sorted(
+            {i for req in assembly["requests"] for i in req.get("memory_record_ids", [])}
+        )
+        lines.append(f"- 实际展示给审查模型的记忆 ID：{displayed or '无'}。")
+    if "budget_usage" in report:
+        usage = report["budget_usage"]
+        lines.append(
+            f"- 累计模型尝试：{usage['model_attempts']}；"
+            f"未知用量调用：{usage['unknown_usage_calls']}。"
+        )
+        lines.append("- 累计值包含摘要及已附加的核验；提供方内部重试用量可能不完整。")
     if context["omitted"]:
         lines.append("- 预算或格式限制导致省略：" + ", ".join(context["omitted"]))
     lines.extend(["", "完整工具轨迹和版本信息见同目录 `review.json`。", ""])
