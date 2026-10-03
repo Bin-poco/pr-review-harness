@@ -94,9 +94,13 @@ class CloudContext:
 
 
 def resume_selection(context, run_id=None, attempt="1"):
-    # A rerun recovers the immediately preceding attempt of this same workflow run.
+    # Re-run may delete the previous attempt's artifacts before this job starts.
+    # Require a new workflow run so the selected source stays independently addressable.
     if context.attempt > 1:
-        return context.run_id, context.attempt - 1
+        raise ValueError(
+            "Actions Re-run cannot reliably retain checkpoint artifacts; "
+            "start a new Run workflow and select a completed source run"
+        )
     if run_id:
         selected = _positive(run_id, "source run ID"), _positive(attempt, "source attempt")
         if selected[0] == context.run_id:

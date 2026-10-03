@@ -15,7 +15,7 @@ flowchart TD
     C --> D[进程停止后 always 导出]
     D --> E[持有 run 锁并用 SQLite backup 保存已提交页面]
     E --> F[上传本次运行和 attempt 的状态 artifact]
-    F --> G[新 job 或 Re-run 选择来源]
+    F --> G[新 Run workflow 指定来源运行]
     G --> H[GitHub API 核对仓库 工作流 事件与 artifact 摘要]
     H --> I[校验 JSON 成员摘要 PR SHA 模型预算和运行环境]
     I --> J[安装到原运行目录]
@@ -32,7 +32,7 @@ flowchart TD
 
 | Variable | 值 | 作用 |
 | --- | --- | --- |
-| `HARNESS_CHECKPOINT_ENABLED` | `true` | 保存状态，并在 Re-run 时恢复前一个 attempt |
+| `HARNESS_CHECKPOINT_ENABLED` | `true` | 保存状态，允许新运行指定来源恢复 |
 | `HARNESS_PUBLISH` | `false` | 当前云端恢复支持预览模式 |
 
 工作流新增 `actions:read` 权限，用于核对和下载来源 artifact；GitHub token 不会转发给存储下载地址。开启 checkpoint 时，同一 PR 的工作流不主动取消正在运行的 job。CLI 审查进程最多运行 8 分钟，整个 job 上限仍为 15 分钟，为导出和上传留出时间。
@@ -40,15 +40,15 @@ flowchart TD
 ### 普通中断后恢复
 
 1. 查看失败运行的 `harness-运行编号-attempt` 诊断，确认 `checkpoint-export.json` 为 `saved`，并有 `harness-state-运行编号-attempt`。
-2. 点击 GitHub **Re-run jobs**：自动选同一 Actions run 的上一个 attempt，不需要重新填编号。
-3. 或创建新的 **Run workflow**，分支选择 `main`，填写相同 `pr_number`，在 `resume_run_id` 中填写来源 Actions 运行编号，在 `resume_attempt` 中填写来源尝试次数。
+2. 创建新的 **Run workflow**，分支选择 `main`，填写相同 `pr_number`，在 `resume_run_id` 中填写来源 Actions 运行编号，在 `resume_attempt` 中填写来源尝试次数。
+3. **不要点击来源运行的 Re-run jobs**。本项目真实重跑验收中，上一尝试的 artifact 在新 job 开始前已消失，见[失败尝试](https://github.com/Bin-poco/PharosRAG/actions/runs/37128096558/attempts/2)。代码明确拒绝 Re-run，避免误把重新执行当成恢复；这个检查无法阻止 GitHub 先删除旧 artifact。
 4. 查看 `automation.json.restored_from`、`review.json.resumed` 和累计 `budget_usage`。已有意见与核验完成时，恢复直接读取结果，不会再请求模型。
 
 没有 artifact、已经过期或版本不兼容时，恢复会拒绝；创建新的 Run workflow 并留空 `resume_run_id` 开始新审查。没有保存状态的旧版运行不能直接恢复。
 
 ### 可重复的阶段暂停实验
 
-首次手动运行选择 `pause_after_review=true`，主审查完成后保存状态，`automation.json.status=paused`、`stage=before_verification`，尚未生成完整核验与发布预览。之后恢复时继续核验，即使 Re-run 保留该输入也不会再次暂停。暂停运行页面绿色只表示状态保存成功，不表示整个审查已完成。
+首次手动运行选择 `pause_after_review=true`，主审查完成后保存状态，`automation.json.status=paused`、`stage=before_verification`，尚未生成完整核验与发布预览。之后新建运行指定来源，继续核验；恢复运行不会再次暂停。暂停运行页面绿色只表示状态保存成功，不表示整个审查已完成。
 
 ## 4. 身份和信任边界
 

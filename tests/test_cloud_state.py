@@ -440,9 +440,10 @@ def test_redirect_to_untrusted_host_refused():
         _download(SimpleNamespace(token="test", opener=SimpleNamespace(open=open_request)), "/a")
 
 
-def test_rerun_selects_previous_attempt_and_runner_ignores_kernel(monkeypatch):
+def test_rerun_refused_and_runner_ignores_kernel(monkeypatch):
     assert resume_selection(CONTEXT) is None
-    assert resume_selection(replace(CONTEXT, attempt=3), "999", "1") == (101, 2)
+    with pytest.raises(ValueError, match="new Run workflow"):
+        resume_selection(replace(CONTEXT, attempt=3), "999", "1")
     assert resume_selection(CONTEXT, "100", "2") == (100, 2)
     with pytest.raises(ValueError):
         resume_selection(CONTEXT, "101")
