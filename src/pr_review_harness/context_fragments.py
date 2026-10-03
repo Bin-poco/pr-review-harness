@@ -287,14 +287,17 @@ class FragmentIndex:
                     self.recent.remove(fid)
                 self.recent.append(fid)
 
-    def visible(self, messages, initial_display):
+    def visible(self, messages, initial_display, *, initial_source_chars=None):
         """Count literal source only in the actual request after native compaction."""
         self.sync()
         initial_chars = 0
         receipts = set()
         for message in messages:
             if message.type == "human" and message.content == initial_display:
-                initial_chars = max(initial_chars, len(initial_display))
+                source_chars = (
+                    len(initial_display) if initial_source_chars is None else initial_source_chars
+                )
+                initial_chars = max(initial_chars, min(len(initial_display), source_chars))
             if message.type != "tool" or message.name not in {"read_code", "search_code"}:
                 continue
             # Offloaded pointers, summaries and arbitrary copied prose are not receipts.

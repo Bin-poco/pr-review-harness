@@ -41,7 +41,7 @@ flowchart TB
 
 ContextManager 替换 SDK 的 SummarizationMiddleware 槽位，先注入工作状态和冻结反馈，再调用原生摘要，最后核对完整请求。SkillsMiddleware 的目录注入在它外层，因此也计入。没有额外 MemoryMiddleware 在 guard 之后追加输入。固定 SHA 的代码需要时通过业务工具重读；摘要不是代码原文或业务事实。
 
-独立核验是可选第二阶段，使用同一 BudgetPolicy、摘要组件与完整请求 guard；主审查和核验分别持久保存图状态，共享全局尝试次数。
+独立核验是可选第二阶段，使用同一 BudgetPolicy、摘要组件、FragmentIndex 与完整请求 guard；两阶段分别保存来源、实际输入与图状态，共享全局尝试次数。核验源码引用从自己的候选 packet 与读取回执重建，不继承主阶段的读取轨迹或人工反馈。
 
 ## 模块边界
 
@@ -93,7 +93,7 @@ ChatOpenAI 适配器估计消息 token，工具 schema 另行序列化计数，�
 | FeedbackRecord | source_run_id、finding_id、rule_key、反馈、范围、有效期、状态、替换关系；MemoryStore |
 | ExecutionReceipt | 工具/模型尝试身份、stage、started/completed 状态、结果或未知用量；独立 SQLite |
 
-读取轨迹区分请求范围和实际完整返回范围；部分最后一行不算完整覆盖。现在初始材料、代码读取与搜索命中进入同一片段索引，记录固定版本、文件、行范围、完整性、静态符号关联与原始来源；最终 guard 在原生摘要后记录本次字面代码输入。工作账本只保留有限引用，不等同于原文展示。原始材料仍在 artifacts/trace，索引由冻结材料与回执重建。详细设计与边界见 [CONTEXT_FRAGMENTS.md](CONTEXT_FRAGMENTS.md)。
+读取轨迹区分请求范围和实际完整返回范围；部分最后一行不算完整覆盖。初始材料、代码读取与搜索命中使用同一片段索引算法，记录固定版本、文件、行范围、完整性、静态符号关联与原始来源；主阶段与核验分别在原生摘要后的最终 guard 记录本次字面代码输入。预算裁剪的提示文字不计入原始材料前缀。工作状态只保留有限引用，不等同于原文展示。原始材料仍在 artifacts/trace，索引由固定输入与回执重建。详细设计与边界见 [CONTEXT_FRAGMENTS.md](CONTEXT_FRAGMENTS.md)。
 
 证据 ID 在保存状态中恢复，CheckRunner 缓存从已完成证据重建，不会因重启重新编号。finding ID 根据 run_id 与规范化内容生成，可供人工反馈关联。
 

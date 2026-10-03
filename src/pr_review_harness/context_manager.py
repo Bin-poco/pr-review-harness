@@ -14,6 +14,11 @@ from pr_review_harness.memory_recall import select_frozen
 from pr_review_harness.state import ReviewState
 from pr_review_harness.working_context import WorkingContext
 
+VERIFICATION_LEDGER_HEADER = """Verifier source references (own packet and receipts).
+These IDs locate archived excerpts, not code in this request. Use read_code at the
+pinned version to retrieve source again. They do not establish a verdict.
+"""
+
 
 class _BudgetedSummary(SummarizationMiddleware):
     """Small compatibility extension for the pinned SDK's full-input limit hook."""
@@ -184,8 +189,9 @@ class ContextManager(AgentMiddleware):
             blocks.append({"type": "text", "text": rendered})
         effective = request.messages
         initial_display = self.initial_text
+        initial_source_chars = len(self.initial_text)
         if self.policy.window_tokens:
-            initial_display = self.counter.fit_text(
+            initial_display, initial_source_chars = self.counter.fit_prefix(
                 self.initial_text, min(10000, int(available * 0.4))
             )
             effective = [
@@ -209,9 +215,12 @@ class ContextManager(AgentMiddleware):
                 m.type == "human" and m.content == initial_display for m in actual.messages
             )
             actual_initial = initial_display if initial_present else ""
-            source_fragments = self.fragments.visible(actual.messages, initial_display)
+            source_fragments = self.fragments.visible(
+                actual.messages, initial_display, initial_source_chars=initial_source_chars
+            )
             self.requests.append(
                 {
+                    "stage": "review",
                     "size": count,
                     "limit": self.policy.input_limit,
                     "counter": self.counter.method,
@@ -225,6 +234,7 @@ class ContextManager(AgentMiddleware):
                     "initial_display_sha256": hashlib.sha256(actual_initial.encode()).hexdigest(),
                     "initial_display_present": initial_present,
                     "initial_display_chars": len(actual_initial),
+                    "initial_source_chars": initial_source_chars if initial_present else 0,
                     "initial_display_truncated": initial_present
                     and initial_display != self.initial_text,
                     "source_fragments": source_fragments,
@@ -287,6 +297,7 @@ class ContextManager(AgentMiddleware):
 
     def manifest(self):
         return {
+            "stage": "review",
             "policy": self.policy.manifest(),
             "materials": self.materials,
             "requests": self.requests,
@@ -314,13 +325,35 @@ class VerificationContext(AgentMiddleware):
     def name(self):
         return "SummarizationMiddleware"
 
-    def __init__(self, model, backend, policy):
+    def __init__(self, snapshot, session, packet, model, backend, policy):
         self.policy = policy
         self.backend = backend
         self.counter = RequestCounter(model, policy)
         self.summary = _BudgetedSummary(model, backend, policy, self.counter)
         self.state_schema = self.summary.state_schema
         self.requests = []
+        self.fragments = FragmentIndex(snapshot, session, packet)
+        self.session = session
+        self.initial_text = packet.text
+
+    def _references(self, limit):
+        references = self.fragments.references()
+        state = {
+            "stage": "verification",
+            "head_sha": self.fragments.snapshot.head_sha,
+            "merge_base_sha": self.fragments.snapshot.merge_base_sha,
+            "fragments": references,
+            "omitted_references": len(self.fragments.records) - len(references),
+            "unindexed_fragment_count": self.fragments.omitted,
+        }
+        while True:
+            rendered = VERIFICATION_LEDGER_HEADER + json.dumps(state, ensure_ascii=True)
+            if self.counter.text(rendered) <= limit:
+                return rendered, [r["id"] for r in state["fragments"]]
+            if not state["fragments"]:
+                raise BudgetExceeded("Required verifier source references cannot fit the request")
+            state["fragments"] = state["fragments"][1:]
+            state["omitted_references"] += 1
 
     def wrap_model_call(self, request, handler):
         allowed = {"read_code", "submit_verification"}
@@ -332,6 +365,35 @@ class VerificationContext(AgentMiddleware):
             ],
             model_settings={**request.model_settings, "max_tokens": self.policy.output_tokens},
         )
+        blocks = list(request.system_message.content_blocks) if request.system_message else []
+        fixed = self.counter([SystemMessage(content_blocks=blocks)], tools=request.tools)
+        available = self.policy.input_limit - fixed
+        if available < 256:
+            raise BudgetExceeded("Fixed verifier policy and tools exceed the request budget")
+        ledger, reference_ids = "", []
+        if self.policy.working_state:
+            limit = (
+                min(2000, int(available * 0.1))
+                if self.policy.window_tokens
+                else self.policy.working_chars
+            )
+            ledger, reference_ids = self._references(limit)
+            blocks.append({"type": "text", "text": ledger})
+        initial_display, initial_source_chars = self.initial_text, len(self.initial_text)
+        effective = request.messages
+        if self.policy.window_tokens:
+            initial_display, initial_source_chars = self.counter.fit_prefix(
+                self.initial_text, min(10000, int(available * 0.4))
+            )
+            effective = [
+                m.model_copy(update={"content": initial_display})
+                if m.type == "human" and m.content == self.initial_text
+                else m
+                for m in effective
+            ]
+        request = request.override(
+            messages=effective, system_message=SystemMessage(content_blocks=blocks)
+        )
 
         def guarded(actual):
             count = self.counter(
@@ -340,8 +402,32 @@ class VerificationContext(AgentMiddleware):
             )
             if count > self.policy.input_limit:
                 raise BudgetExceeded("Verifier complete request exceeds shared input budget")
+            present = any(
+                m.type == "human" and m.content == initial_display for m in actual.messages
+            )
+            actual_initial = initial_display if present else ""
+            visible = self.fragments.visible(
+                actual.messages, initial_display, initial_source_chars=initial_source_chars
+            )
             self.requests.append(
-                {"size": count, "limit": self.policy.input_limit, "counter": self.counter.method}
+                {
+                    "stage": "verification",
+                    "size": count,
+                    "limit": self.policy.input_limit,
+                    "counter": self.counter.method,
+                    "tools": len(actual.tools),
+                    "initial_display_present": present,
+                    "initial_display_sha256": hashlib.sha256(actual_initial.encode()).hexdigest(),
+                    "initial_display_chars": len(actual_initial),
+                    "initial_source_chars": initial_source_chars if present else 0,
+                    "initial_display_truncated": present and initial_display != self.initial_text,
+                    "source_fragments": visible,
+                    "fragment_index_sha256": self.fragments.manifest()["sha256"],
+                    "fragment_trace_events": len(self.session.trace),
+                    "unindexed_fragment_count": self.fragments.omitted,
+                    "fragment_reference_ids": reference_ids,
+                    "fragment_reference_chars": len(ledger),
+                }
             )
             return handler(actual)
 
@@ -350,4 +436,15 @@ class VerificationContext(AgentMiddleware):
         )
 
     def after_model(self, state, runtime):
-        return {"verification_context_requests": list(self.requests)}
+        return {"verification_context_manifest": self.manifest()}
+
+    def manifest(self):
+        return {
+            "stage": "verification",
+            "policy": self.policy.manifest(),
+            "requests": list(self.requests),
+            "fragment_index": self.fragments.manifest(),
+            "working_state": self.policy.working_state,
+            "summary": "one native Deep Agents summarizer; inputs include source references",
+            "scope": "own candidate packet and receipts; no reviewer read-history or feedback",
+        }

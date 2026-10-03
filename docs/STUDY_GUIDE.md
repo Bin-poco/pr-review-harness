@@ -375,6 +375,8 @@ uv run pytest tests/test_durable_context.py::test_completed_receipt_replays_with
 
 **练习**：阅读 [核验测试](../tests/test_verification.py) 的 `test_truncated_or_irrelevant_reads_cannot_support_a_claim`，解释为何只读到文件开头不足以支持后面的缺陷。
 
+核验与主阶段共用 `FragmentIndex`，但各自拥有来源与输入记录。阅读 [核验片段测试](../tests/test_verifier_fragments.py)，比较 `context.assembly.fragment_index` 和 `verification.context.fragment_index`；相同 ID 不表示两个阶段共享读取事实。核验在压缩前注入有限源码引用，最终 guard 记录仍存在的字面源码；跨进程恢复从 packet 与本阶段回执重建，不能把模型摘要当源码覆盖记录。
+
 **自检**：主审查与核验的材料和工具有哪些区别？核验驳回一条意见后，为什么报告仍保留它？
 
 ## 9. 真实运行与评测：从工程机制走到质量证据

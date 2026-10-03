@@ -121,11 +121,15 @@ class RequestCounter:
 
     def fit_text(self, value, limit):
         """Return a prefix with an explicit omission marker, preserving the original elsewhere."""
+        return self.fit_prefix(value, limit)[0]
+
+    def fit_prefix(self, value, limit):
+        """Return rendered text and the source-prefix length, excluding our marker."""
         if self.text(value) <= limit:
-            return value
+            return value, len(value)
         marker = "\n[OMITTED by unified budget; use fixed-version tools for original.]"
         if self.text(marker) > limit:
-            return ""
+            return "", 0
         low, high = 0, len(value)
         while low < high:
             mid = (low + high + 1) // 2
@@ -133,7 +137,7 @@ class RequestCounter:
                 low = mid
             else:
                 high = mid - 1
-        return value[:low] + marker
+        return value[:low] + marker, low
 
 
 DEFAULT_POLICY = BudgetPolicy()
