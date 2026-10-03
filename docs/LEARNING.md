@@ -39,7 +39,7 @@
 
 已有 18 个跨仓库公开 PR 首轮运行、原故障重放和手动 GitHub 接入，见 [落地记录](LANDING_V1.md)。还可以沿着 [Draft 测试 PR #4](https://github.com/Bin-poco/PharosRAG/pull/4)核对报告、发布回执与行内评论；它是人工样例，仅证明链路。
 
-执行容器与自动事件入口已实现，新增学习路线见 [执行与自动审查](EXECUTION_AND_AUTOMATION.md)。本仓库的[云端手动预览与 Draft 跳过](CLOUD_ACCEPTANCE.md)已验收；下一项是在业务仓库部署固定源码并验收非 Draft 自动预览。质量验证继续保持模型、工具和预算一致，比较工作状态、记忆与上下文选择的收益及开销，并完成独立根因复核。核验只附加判断，不能直接删除原发现来制造更好的指标。
+执行容器与自动事件入口已实现，新增学习路线见 [执行与自动审查](EXECUTION_AND_AUTOMATION.md)。本仓库的[云端手动预览与 Draft 跳过](CLOUD_ACCEPTANCE.md)、[PharosRAG 固定源码部署及非 Draft 自动预览](PHAROS_CLOUD_ACCEPTANCE.md)均已验收。下一项工程工作是跨 job 存储与增量审查。质量验证继续保持模型、工具和预算一致，比较工作状态、记忆与上下文选择的收益及开销，并完成独立根因复核。核验只附加判断，不能直接删除原发现来制造更好的指标。
 
 ## 完成一轮学习的标准
 

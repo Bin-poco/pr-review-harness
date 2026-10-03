@@ -52,7 +52,7 @@ uv run python scripts/install_workflow.py \
   --out /你的/业务仓库/.github/workflows/pr-review.yml
 ```
 
-使用已上传并审核过的完整提交 SHA；可通过 `git rev-parse HEAD` 查看本地版本。生成器拒绝分支名和覆盖已有文件，只生成本地文件。部署到 PharosRAG 默认分支属于后续步骤，目前尚未执行。
+使用已上传并审核过的完整提交 SHA；可通过 `git rev-parse HEAD` 查看本地版本。生成器拒绝分支名和覆盖已有文件，只生成本地文件。PharosRAG 已在默认分支部署调用方工作流，固定使用 `ac13e55d4127b36a35e66464933d6734c87d2541`，并完成[非 Draft 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)。该仓库的 `HARNESS_ENABLED=true`、`HARNESS_PUBLISH=false`；后续 Harness 主分支更新不会自动升级业务仓库所固定的版本。
 
 ## 5. 当前运行边界
 

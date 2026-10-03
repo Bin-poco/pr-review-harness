@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-03T09:40:14+08:00",
+  "purpose": "Business-repository automatic event acceptance on a synthetic PR; not review quality evaluation.",
+  "deployment": {
+    "business_repository": "https://github.com/Bin-poco/PharosRAG",
+    "workflow_commit": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "workflow_path": ".github/workflows/pr-review.yml",
+    "harness_repository": "https://github.com/Bin-poco/pr-review-harness",
+    "harness_revision": "ac13e55d4127b36a35e66464933d6734c87d2541",
+    "variables": {
+      "HARNESS_BASE_URL": "https://api.deepseek.com",
+      "HARNESS_ENABLED": "true",
+      "HARNESS_MODEL": "deepseek-flash",
+      "HARNESS_PUBLISH": "false"
+    }
+  },
+  "automatic_preview": {
+    "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37086749083",
+    "event": "pull_request_target",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-10-03T01:36:39Z",
+    "updatedAt": "2026-10-03T01:37:12Z",
+    "trusted_checkout_sha": "ac13e55d4127b36a35e66464933d6734c87d2541",
+    "trigger_action": "ready_for_review",
+    "trigger_evidence": "PR timeline ready_for_review immediately precedes the automatic run; no workflow_dispatch used.",
+    "job_started_at": "2026-10-03T01:36:42Z",
+    "job_completed_at": "2026-10-03T01:37:11Z"
+  },
+  "draft_event": {
+    "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37086731665",
+    "event": "pull_request_target",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-10-03T01:36:23Z",
+    "updatedAt": "2026-10-03T01:36:40Z",
+    "automation": {
+      "status": "skipped",
+      "reason": "closed_or_draft"
+    }
+  },
+  "reviewed_pr": {
+    "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "comments": 0,
+    "draft": true,
+    "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+    "merged": false,
+    "number": 5,
+    "repository_id": 1367008779,
+    "review_comments": 0,
+    "state": "open",
+    "url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+    "review_count": 0,
+    "timeline": [
+      {
+        "created_at": "2026-10-03T01:36:37Z",
+        "event": "ready_for_review"
+      }
+    ]
+  },
+  "report": {
+    "run_id": "07a6f966d40742ce979788d97ce68abf",
+    "mode": "live",
+    "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "merge_base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+    "source": {
+      "kind": "github",
+      "url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+      "repository_id": 1367008779,
+      "owner": "Bin-poco",
+      "repository": "PharosRAG",
+      "number": 5,
+      "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+      "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+      "state": "open",
+      "title": "[Test] Validate automatic Harness preview"
+    },
+    "findings": [
+      {
+        "path": "examples/harness_auto_preview.py",
+        "line": 6,
+        "severity": "P2",
+        "title": "mean_chunk_score raises ZeroDivisionError on empty input despite documented 0.0 contract",
+        "explanation": "The new function `mean_chunk_score` documents in its own docstring (line 5) that \"an empty list should produce 0.0\", but the implementation on line 6 computes `sum(scores) / len(scores)`. When `scores` is empty, `len(scores)` is 0, so the division raises `ZeroDivisionError` instead of returning the documented 0.0. The documented behavior and the actual behavior directly contradict each other, so any caller relying on the stated contract (e.g. aggregating scores over a chunk set that may be empty) will crash rather than receive 0.0. The fix is to guard the empty case, e.g. `return sum(scores) / len(scores) if scores else 0.0`.",
+        "trigger": "Call `mean_chunk_score([])` (or pass any empty sequence of scores).",
+        "evidence_ids": [
+          "check-001"
+        ],
+        "confidence": "high",
+        "id": "finding-fa36a3e2bb081d13"
+      }
+    ],
+    "budget_usage": {
+      "model_attempts": 6,
+      "tool_attempts": 9,
+      "unknown_usage_calls": 0,
+      "known_usage": {
+        "input_tokens": 20677,
+        "output_tokens": 1088,
+        "total_tokens": 21765
+      },
+      "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+    },
+    "model": {
+      "class": "langchain_openai.chat_models.base.ChatOpenAI",
+      "type": "openai-chat",
+      "model_name": "deepseek-flash",
+      "model": "deepseek-flash",
+      "openai_api_base": "https://api.deepseek.com",
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "max_retries": 1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "model_kwargs": {
+        "parallel_tool_calls": false
+      }
+    },
+    "tests_enabled": false,
+    "verification": {
+      "status": "completed",
+      "verdicts": [
+        {
+          "finding_index": 1,
+          "verdict": "supported",
+          "reason": "Head line 5 docstring states 'an empty list should produce 0.0', but line 6 computes sum(scores)/len(scores). For empty input len(scores)==0, so mean_chunk_score([]) raises ZeroDivisionError, directly contradicting the documented contract. File is new in this change (absent at base), so the defect is introduced here. Claim is credible and accurate."
+        }
+      ],
+      "unverified_count": 0
+    },
+    "submission": {
+      "repair_requests": 0,
+      "repair_limit": 2,
+      "outcome": "submitted"
+    },
+    "publication_status": "preview",
+    "automation": {
+      "status": "completed",
+      "publication": "preview",
+      "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+      "run_id": "07a6f966d40742ce979788d97ce68abf"
+    }
+  },
+  "artifact_sha256": {
+    "automation.json": "f7a96ef7f78f90d307c168cfa4b6948c45e271eb6b9dba898e1ef9784edcfc63",
+    "publication.json": "6911143f7361a4bf747b94995817843c10b578e3dd4624d4e86bb69d152dfe82",
+    "review.json": "da32a7f8c74ec48e6396bdc2cb7d2e4da0e83de65c212196e242dedb4d918c5b",
+    "review.md": "2b977cfff100f9d7371e4a241a84d3c75f6621598dba241eb979e5596abae5f7"
+  },
+  "limits": [
+    "The synthetic fixture proves the deployed automatic review path, not accuracy or business impact.",
+    "No review or comment was published; automatic publication remains disabled.",
+    "Only code reads and syntax checks were enabled; Harness did not execute PR tests or installation scripts.",
+    "Hosted jobs do not persist memory or checkpoints across runs.",
+    "The verifier attempted one invalid version value (merge-base), received a tool error and corrected it to base within its budget."
+  ]
+}

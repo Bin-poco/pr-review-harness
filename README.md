@@ -99,7 +99,7 @@ uv run --env-file .env pr-harness github-publish \
 
 `.github/workflows/review-pr.yml` 提供 PR 事件与手动触发；默认需 `HARNESS_ENABLED=true` 才运行，`HARNESS_PUBLISH=true` 才自动发布。接入其他业务仓库时用 `scripts/install_workflow.py` 生成固定 Harness 提交的工作流。配置 Secret、部署到可信默认分支后才能在线使用，见[部署步骤](docs/EXECUTION_AND_AUTOMATION.md)。
 
-本项目已发布到 [Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)。首次配置步骤见 [GitHub 上线配置](docs/GITHUB_SETUP.md)，已完成的本仓库云端手动预览见 [验收记录](docs/CLOUD_ACCEPTANCE.md)。
+本项目已发布到 [Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)。首次配置步骤见 [GitHub 上线配置](docs/GITHUB_SETUP.md)。已完成[本仓库云端手动预览](docs/CLOUD_ACCEPTANCE.md)，以及[PharosRAG 业务仓库部署与非 Draft 自动预览](docs/PHAROS_CLOUD_ACCEPTANCE.md)；自动发布保持关闭。
 
 ## 中断后恢复
 
@@ -186,6 +186,6 @@ uv run pytest
 uv run ruff check src tests
 ```
 
-统一设计 A–D 已实现，E 的四组实验入口已实现；跨仓库试点已封存并完成首轮运行，提交修复、手动 GitHub 接入、Docker 执行与自动入口已实现。独立人工审查和规划的 24 例正式评测集仍待完成。本仓库云端手动预览已验收。接下来部署到业务仓库并验收非 Draft 自动预览，同时完成重复运行、根因复核和固定预算消融，再形成有数据支撑的简历表述。
+统一设计 A–D 已实现，E 的四组实验入口已实现；跨仓库试点已封存并完成首轮运行，提交修复、手动 GitHub 接入、Docker 执行与自动入口已实现。独立人工审查和规划的 24 例正式评测集仍待完成。本仓库云端手动预览、PharosRAG 部署与非 Draft 自动预览均已验收。接下来完善跨 job 存储与增量审查，同时完成重复运行、根因复核和固定预算消融，再形成有数据支撑的简历表述。
 
 设计参考：[Anthropic 上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[长任务 Harness 的生成与评估分工](https://www.anthropic.com/engineering/harness-design-long-running-apps)、[Agent 评估](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)及 [Deep Agents Skills 文档](https://docs.langchain.com/oss/python/deepagents/skills)。这些资料提供设计思路，项目效果仍需自身数据验证。

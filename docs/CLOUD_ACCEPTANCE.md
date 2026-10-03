@@ -30,7 +30,7 @@
 - 只启用代码读取与语法检查，没有执行 PR 测试或安装脚本。
 - 下载的 artifact 和运行日志检查未发现本机模型密钥或常见凭据格式；完整产物留在被忽略的本机 `outputs/cloud-acceptance/`。
 
-自动 PR 事件的 artifact 仅包含 `automation.json`，状态 skipped、原因为 closed_or_draft。它验证了 Draft 跳过路径，没有调用模型；运行日志也确认实际检出的是可信默认分支的 `ac13e55`。非 Draft 自动事件的完整审查链路还需专项云端验收。
+自动 PR 事件的 artifact 仅包含 `automation.json`，状态 skipped、原因为 closed_or_draft。它验证了 Draft 跳过路径，没有调用模型；运行日志也确认实际检出的是可信默认分支的 `ac13e55`。本次未覆盖非 Draft 自动审查；该路径后来在 [PharosRAG 专项验收](PHAROS_CLOUD_ACCEPTANCE.md)中完成。
 
 ## 3. 如何学习这次运行
 
@@ -45,4 +45,4 @@
 
 已完成本仓库云端手动预览和自动 Draft 跳过验收。`HARNESS_ENABLED=true`，`HARNESS_PUBLISH=false`，自动发布仍未开启。
 
-PharosRAG 的默认分支尚未部署调用方工作流。下一步可在业务仓库部署经过审核的固定 Harness SHA，验收非 Draft 自动预览。跨 job 记忆/checkpoint、增量审查、队列和审查质量改善仍待完成。
+本次验收结束时，PharosRAG 尚未部署调用方工作流。同日后续已完成[业务仓库部署与非 Draft 自动预览](PHAROS_CLOUD_ACCEPTANCE.md)，记录单独保存。跨 job 记忆/checkpoint、增量审查、队列和审查质量改善仍待完成。
