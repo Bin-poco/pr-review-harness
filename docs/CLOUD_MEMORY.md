@@ -1,6 +1,6 @@
 # 跨次云端审查的人工反馈记忆
 
-更新时间：2026-10-03。已实现版本化反馈文件、导入/导出与 GitHub 读取；PharosRAG 两次独立云端运行的验收结果将在本文追加。运行图的跨 job checkpoint 恢复仍待实现。
+更新时间：2026-10-03。版本化反馈文件、导入/导出与 GitHub 读取已实现，PharosRAG 两次独立云端运行均通过验收。运行图的跨 job checkpoint 恢复仍待实现。
 
 ## 1. 存储与运行路径
 
@@ -106,3 +106,41 @@ artifact 中新增 `memory-source.json`，记录 repository、branch、commit、
 - [test_memory_bundle.py](../tests/test_memory_bundle.py)：独立数据库、旧数据库迁移、刷新撤销、异常不部分写入、CI 请求可见性。
 
 这证明人工反馈可以跨次读取。规则改善了多少遗漏或误报，仍需历史 PR → 后续 PR 的独立样本和消融实验；同一个演示 PR 的重复运行不能作为质量提升数据。
+
+## 6. PharosRAG 两次独立云端验收
+
+维护者已明确确认并保存：**“审查 examples/**/*.py 时，核对函数声明的空输入行为与实现是否一致。”** 范围限定为演示文件，accepted，有效期 90 天至 `2027-01-01T02:15:41.214546+00:00`。它关联此前 run `07a6f966d40742ce979788d97ce68abf` 的 finding `finding-fa36a3e2bb081d13`，不是 Agent 自动生成的记忆。
+
+| 项目 | 本次固定版本 |
+| --- | --- |
+| Harness 源码 | [`ff9a0b1c881afe690e77124c59d7cb39bc218d4d`](https://github.com/Bin-poco/pr-review-harness/commit/ff9a0b1c881afe690e77124c59d7cb39bc218d4d) |
+| 业务工作流与反馈文件 | [`e07afdc216ea70a98aa1870e9e23c349ac27c94e`](https://github.com/Bin-poco/PharosRAG/commit/e07afdc216ea70a98aa1870e9e23c349ac27c94e) |
+| 反馈文件 | [`.harness/feedback.json`](https://github.com/Bin-poco/PharosRAG/blob/e07afdc216ea70a98aa1870e9e23c349ac27c94e/.harness/feedback.json) |
+| 反馈 UID | `e2ec47adf4d64cd4b5239218a593e45a` |
+| 测试 PR | [PharosRAG #5](https://github.com/Bin-poco/PharosRAG/pull/5)，Draft、开放、未合并 |
+| PR base / head | `40136cea7cac09b3b9306f87ce9a3b69b1a2410f` / `80eb69da95f03d3e84a2b3905b887180269110ed` |
+| 文件 SHA256 | `63c521e3576ce8ad504b3010449c3085757d944d414f53c1365230c0f4cf4122` |
+
+两轮均为单独的 workflow_dispatch，使用新的 hosted job 和不同的 review run ID，没有恢复 checkpoint。日志核对了实际检出的 Harness SHA；反馈来源固定默认分支提交，与本次 API 返回的 PR base/head 分别记录。
+
+| 验收结果 | [第一轮](https://github.com/Bin-poco/PharosRAG/actions/runs/37089473764) | [第二轮](https://github.com/Bin-poco/PharosRAG/actions/runs/37089583454) |
+| --- | --- | --- |
+| 状态 | success | success |
+| job 时间（含安装与上传） | 22 秒 | 30 秒 |
+| 规则在主审查请求中实际展示 | 3 / 3 | 10 / 10 |
+| 来源 SHA、文件摘要、反馈 UID | 一致 | 一致 |
+| 冻结召回文本摘要 | 一致 | 一致 |
+| 审查结果 | 第 6 行 1 条 P2 | 第 6 行 1 条 P2 |
+| 独立模型核验 | completed，supported | completed，supported |
+| 主审查及核验模型 / 工具尝试 | 6 / 9 | 13 / 17 |
+| 已报告 input / output tokens | 21,712 / 1,132 | 64,238 / 1,419 |
+| 提交修复次数 | 0 | 0 |
+| 发布 | preview | preview |
+
+远程复核：reviews、行内评论、普通评论均为 0；自动发布保持 false；测试 PR 未合并。云端只做语法检查，不执行 PR 测试。第二轮模型额外使用虚拟文件系统的 ls/glob 查询仓库路径，返回空结果后才继续提交，导致调用数增加；这些额外调用被预算记录。当前不能据此声称调用量、成本或审查质量改善。
+
+本机完整回归 **203 项通过**（包含 Docker），新增记忆专项 30 项通过；Ruff lint、修改文件格式、模板及业务工作流 actionlint、diff 检查通过。检查了本次公开文件、云端 artifact 与日志，未发现本机模型密钥或常见凭据格式。原历史评测封存文件未改写。
+
+完整摘要与 artifact 哈希见 [cloud-memory-20261003.json](validation/cloud-memory-20261003.json)。本机原始 artifact 位于 `outputs/cloud-memory/first/` 和 `outputs/cloud-memory/second/`，Git 忽略；Actions artifact 保留期为 7 天。
+
+建议下一轮先明确虚拟技能/记忆文件与仓库代码工具的职责，减少无效探索，再实现有版本失效规则的增量审查。跨 job checkpoint 恢复、远程反馈编辑界面和质量收益验证仍是独立任务。

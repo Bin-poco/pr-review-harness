@@ -79,3 +79,10 @@ uv run pr-harness benchmark --cases outputs/context-memory-v3/demo-cases.json \
 - 本仓库 Draft PR #1 完成真实 DeepSeek 云端手动预览：1 条 P2，第 6 行定位；独立核验 completed/supported；6 次模型、9 次工具尝试，提交修复 0 次。
 - 自动 pull_request_target 事件正确跳过 Draft；手动运行仅做语法检查，发布 preview，远程审查和评论均为 0。
 - Actions 运行链接与 artifact 摘要见 [CLOUD_ACCEPTANCE.md](CLOUD_ACCEPTANCE.md)。人工样例只用于工程验收；非 Draft 自动审查、业务仓库部署、跨 job 存储和质量收益仍需继续验证。
+
+
+## 跨次云端人工反馈验收（2026-10-03）
+
+在业务仓库默认分支保存维护者确认的版本化反馈，单独启动两次云端 DeepSeek 审查。两轮使用不同 hosted job 与 run ID，均读取相同反馈 UID、文件摘要和固定来源 SHA；规则实际出现在 3/3 与 10/10 次主审查模型请求中。均完成审查与独立核验，保持预览，Draft PR 未合并。
+
+本机完整回归 203 项通过（含 Docker）；新增记忆专项 30 项通过。实现、生命周期与运维步骤见 [CLOUD_MEMORY.md](CLOUD_MEMORY.md)，原始结果摘要见 [cloud-memory-20261003.json](validation/cloud-memory-20261003.json)。这项验收仅证明人工反馈的跨 job 读取；云端 checkpoint 恢复和记忆质量收益尚未验证。以上历史记录保留原验收时间与结论。

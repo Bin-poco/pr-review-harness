@@ -45,4 +45,4 @@
 
 已完成本仓库云端手动预览和自动 Draft 跳过验收。`HARNESS_ENABLED=true`，`HARNESS_PUBLISH=false`，自动发布仍未开启。
 
-本次验收结束时，PharosRAG 尚未部署调用方工作流。同日后续已完成[业务仓库部署与非 Draft 自动预览](PHAROS_CLOUD_ACCEPTANCE.md)，记录单独保存。跨 job 记忆/checkpoint、增量审查、队列和审查质量改善仍待完成。
+本次验收结束时，PharosRAG 尚未部署调用方工作流。同日后续已完成[业务仓库部署与非 Draft 自动预览](PHAROS_CLOUD_ACCEPTANCE.md)，记录单独保存。同日后续又完成[跨 job 人工反馈验收](CLOUD_MEMORY.md)。跨 job checkpoint、增量审查、队列和审查质量改善仍待完成。

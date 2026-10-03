@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "purpose": "Cross-job human feedback engineering acceptance; not a review quality benchmark",
+  "harness_repository": "Bin-poco/pr-review-harness",
+  "harness_commit": "ff9a0b1c881afe690e77124c59d7cb39bc218d4d",
+  "business_repository": "Bin-poco/PharosRAG",
+  "business_commit": "e07afdc216ea70a98aa1870e9e23c349ac27c94e",
+  "pr_url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+  "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+  "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+  "human_confirmation": {
+    "text": "审查 examples/**/*.py 时，核对函数声明的空输入行为与实现是否一致。",
+    "uid": "e2ec47adf4d64cd4b5239218a593e45a",
+    "scope": "examples/**/*.py",
+    "disposition": "accepted",
+    "source": "Maintainer confirmation in Codex, 2026-10-03",
+    "source_run_id": "07a6f966d40742ce979788d97ce68abf",
+    "finding_id": "finding-fa36a3e2bb081d13",
+    "expires_at": "2027-01-01T02:15:41.214546+00:00"
+  },
+  "local_verification": {
+    "pytest_passed": 203,
+    "docker_enabled": true,
+    "ruff_lint": "passed",
+    "changed_python_format": "passed",
+    "workflow_actionlint": "passed",
+    "diff_whitespace": "passed"
+  },
+  "remote_configuration": {
+    "HARNESS_BASE_URL": "https://api.deepseek.com",
+    "HARNESS_ENABLED": "true",
+    "HARNESS_MEMORY_ENABLED": "true",
+    "HARNESS_MODEL": "deepseek-flash",
+    "HARNESS_PUBLISH": "false"
+  },
+  "runs": [
+    {
+      "github_run_id": 37089473764,
+      "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37089473764",
+      "job_id": 111106527066,
+      "event": "workflow_dispatch",
+      "conclusion": "success",
+      "created_at": "2026-10-03T02:20:37Z",
+      "job_started_at": "2026-10-03T02:20:40Z",
+      "job_completed_at": "2026-10-03T02:21:02Z",
+      "job_elapsed_seconds": 22.0,
+      "review_run_id": "1296f37b4a7747cc918cc1fb115564c4",
+      "mode": "live",
+      "resumed": false,
+      "memory_source": {
+        "kind": "github-default-branch",
+        "repository_id": 1367008779,
+        "repository": "Bin-poco/PharosRAG",
+        "branch": "main",
+        "commit_sha": "e07afdc216ea70a98aa1870e9e23c349ac27c94e",
+        "path": ".harness/feedback.json",
+        "blob_sha": "35c23d0389e9aca4daaa9c4c17d571afcd00c940",
+        "file_sha256": "63c521e3576ce8ad504b3010449c3085757d944d414f53c1365230c0f4cf4122",
+        "bundle_sha256": "2b060fd8ba846f13a7bb83cd5f22497d5521e80530f8d53d1d9cb2a24e18539e",
+        "record_count": 1
+      },
+      "memory_uid": "e2ec47adf4d64cd4b5239218a593e45a",
+      "memory_snapshot_sha256": "d06d64cbf7d79677cbb1118bc3e3bc3b16f2a8ab76e3c2eda11ebc8b730abbd4",
+      "main_model_requests": 3,
+      "main_model_requests_displaying_rule": 3,
+      "memory_display_truncated": false,
+      "findings": [
+        {
+          "id": "finding-90ee5fea54436b6e",
+          "path": "examples/harness_auto_preview.py",
+          "line": 6,
+          "severity": "P2",
+          "title": "mean_chunk_score raises ZeroDivisionError on empty input despite documented 0.0 contract"
+        }
+      ],
+      "verification_status": "completed",
+      "verification_verdicts": [
+        {
+          "finding_index": 1,
+          "verdict": "supported",
+          "reason": "Head line 5 docstring declares empty input should return 0.0, but line 6 `return sum(scores) / len(scores)` divides by zero for empty input. File is new in this PR (absent in base), so defect is newly introduced. Trigger mean_chunk_score([]) reaches the division with no guard, raising ZeroDivisionError instead of returning 0.0."
+        }
+      ],
+      "submission_repairs": 0,
+      "budget_usage": {
+        "model_attempts": 6,
+        "tool_attempts": 9,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 21712,
+          "output_tokens": 1132,
+          "total_tokens": 22844
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "publication_status": "preview",
+      "run_tests": false,
+      "artifact_sha256": {
+        "automation.json": "59217859aaea79883ff199b13d0c2ba7fe6fc67d01f5e2fafa88338835a87593",
+        "memory-source.json": "de455cb19cbacc8d1e5bdc68d790f3525e7f7dc3756a4dbbb6f8453d7e849343",
+        "publication.json": "60f3549f25eeb9c64ad7f6bfaca88dfd516bcd7280d2d55bfd99978166db0ba0",
+        "review.json": "31bb66caa80b5a302400d80d40cf52221ead849a610e1eccbef085c53b056365",
+        "review.md": "1b99abaf198f41e6482dfcbcf0a3869c646081e2a38387db22d9d17acce3b33e"
+      }
+    },
+    {
+      "github_run_id": 37089583454,
+      "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37089583454",
+      "job_id": 111106854207,
+      "event": "workflow_dispatch",
+      "conclusion": "success",
+      "created_at": "2026-10-03T02:22:27Z",
+      "job_started_at": "2026-10-03T02:22:30Z",
+      "job_completed_at": "2026-10-03T02:23:00Z",
+      "job_elapsed_seconds": 30.0,
+      "review_run_id": "620226f0e75d4484abd52d0d02807721",
+      "mode": "live",
+      "resumed": false,
+      "memory_source": {
+        "kind": "github-default-branch",
+        "repository_id": 1367008779,
+        "repository": "Bin-poco/PharosRAG",
+        "branch": "main",
+        "commit_sha": "e07afdc216ea70a98aa1870e9e23c349ac27c94e",
+        "path": ".harness/feedback.json",
+        "blob_sha": "35c23d0389e9aca4daaa9c4c17d571afcd00c940",
+        "file_sha256": "63c521e3576ce8ad504b3010449c3085757d944d414f53c1365230c0f4cf4122",
+        "bundle_sha256": "2b060fd8ba846f13a7bb83cd5f22497d5521e80530f8d53d1d9cb2a24e18539e",
+        "record_count": 1
+      },
+      "memory_uid": "e2ec47adf4d64cd4b5239218a593e45a",
+      "memory_snapshot_sha256": "d06d64cbf7d79677cbb1118bc3e3bc3b16f2a8ab76e3c2eda11ebc8b730abbd4",
+      "main_model_requests": 10,
+      "main_model_requests_displaying_rule": 10,
+      "memory_display_truncated": false,
+      "findings": [
+        {
+          "id": "finding-52e1482a398d4581",
+          "path": "examples/harness_auto_preview.py",
+          "line": 6,
+          "severity": "P2",
+          "title": "mean_chunk_score raises ZeroDivisionError on empty input despite documented 0.0 contract"
+        }
+      ],
+      "verification_status": "completed",
+      "verification_verdicts": [
+        {
+          "finding_index": 1,
+          "verdict": "supported",
+          "reason": "Head line 5 docstring explicitly promises 'an empty list should produce 0.0', but line 6 returns sum(scores)/len(scores) with no empty guard. Calling mean_chunk_score([]) computes 0/0 and raises ZeroDivisionError, contradicting the documented contract. File is new in this PR (base absent), so the defect is newly introduced. Code and trigger are consistent and credible."
+        }
+      ],
+      "submission_repairs": 0,
+      "budget_usage": {
+        "model_attempts": 13,
+        "tool_attempts": 17,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 64238,
+          "output_tokens": 1419,
+          "total_tokens": 65657
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "publication_status": "preview",
+      "run_tests": false,
+      "artifact_sha256": {
+        "automation.json": "80942ba42a2de4f97320673dba78a8560808816ae83d926e966935cc80a6604a",
+        "memory-source.json": "de455cb19cbacc8d1e5bdc68d790f3525e7f7dc3756a4dbbb6f8453d7e849343",
+        "publication.json": "64a7e46e601c4cdb14d6fc174e2f3f70de7b44fff2a7060403b0166a17be2308",
+        "review.json": "aa0d10c01f7218aa6c5e7387fce0e77973dc0dd67876d9c96afa4fe22bf1861d",
+        "review.md": "2da0d4d17cdf851dd4d9b989cac68fe2ab35a8496a5bc6ab4376172cc10fd22e"
+      }
+    }
+  ],
+  "checks": {
+    "independent_jobs": true,
+    "same_feedback_uid_and_source": true,
+    "rule_in_all_main_model_requests": true,
+    "same_frozen_recall_content": true,
+    "fixed_harness_checkout_observed": true,
+    "no_pr_test_execution": true,
+    "preview_only": true,
+    "open_draft_unmerged": true,
+    "remote_reviews": 0,
+    "remote_issue_comments": 0,
+    "remote_inline_comments": 0,
+    "credential_scan": "passed",
+    "credential_scan_files": 18
+  },
+  "limits": [
+    "Synthetic demo PR; no quality or cost improvement measured",
+    "Explicit human feedback only; no model self-writes",
+    "No cross-job checkpoint recovery or distributed publisher lock",
+    "Fresh jobs trust the default branch file; historical rollback protection requires maintainer Git review"
+  ],
+  "observations": [
+    "Second run performed extra ls/glob calls against virtual filesystem repository paths; returned no files, then completed. More calls and tokens observed; no cost improvement claimed.",
+    "PR base SHA returned by GitHub differs from the default branch memory commit; both independently pinned and recorded."
+  ]
+}
