@@ -12,13 +12,20 @@ class ChangedFile:
     status: str
     patch: str
     added_ranges: tuple[tuple[int, int], ...]
+    old_path: str | None = None
 
 
 @dataclass(frozen=True)
 class ContextItem:
+    """Rendered material and exact prefix boundaries, excluding inserted clipping markers."""
+
     path: str
     reason: str
     content: str
+    kind: str = "legacy"
+    content_start: int | None = None
+    source_chars: int = 0
+    complete_chars: int = 0
 
 
 @dataclass(frozen=True)

@@ -30,11 +30,19 @@ def _safe_path(path: str) -> str:
     return path
 
 
+def git_lines(text: str) -> list[str]:
+    """Use Git's LF locations; normalize CRLF without splitting Unicode separators."""
+    lines = text.split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    return [line.removesuffix("\r") for line in lines]
+
+
 def _added_ranges(patch: str) -> tuple[tuple[int, int], ...]:
     """Locate added lines, excluding unchanged lines in the same diff hunk."""
     added: list[int] = []
     head_line: int | None = None
-    for line in patch.splitlines():
+    for line in patch.split("\n"):
         hunk = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
         if hunk:
             head_line = int(hunk.group(1))
@@ -205,7 +213,7 @@ class Snapshot:
                 *pathspecs,
                 max_bytes=self.MAX_PATCH_BYTES,
             ).decode("utf-8", errors="replace")
-            changes.append(ChangedFile(path, status, patch, _added_ranges(patch)))
+            changes.append(ChangedFile(path, status, patch, _added_ranges(patch), old_path))
             if len(changes) > self.MAX_CHANGED_FILES:
                 raise ValueError("PR has too many changed files for this snapshot")
         return tuple(changes)
@@ -250,7 +258,7 @@ class Snapshot:
             content = self.read_file(path)
         except (ValueError, FileNotFoundError):
             return False
-        if line > len(content.splitlines()):
+        if line > len(git_lines(content)):
             return False
         return any(
             changed.path == path

@@ -193,7 +193,7 @@ CLI _dispatch
 
 ## 5. 上下文管理：选入什么、保留什么、何时压缩
 
-阅读顺序：[context.py](../src/pr_review_harness/context.py) → [context_manager.py](../src/pr_review_harness/context_manager.py) → [budget.py](../src/pr_review_harness/budget.py) → [working_context.py](../src/pr_review_harness/working_context.py)。
+阅读顺序：[context.py](../src/pr_review_harness/context.py) → [context_fragments.py](../src/pr_review_harness/context_fragments.py) → [context_manager.py](../src/pr_review_harness/context_manager.py) → [budget.py](../src/pr_review_harness/budget.py) → [working_context.py](../src/pr_review_harness/working_context.py)。
 
 ### 5.1 初始材料选择
 
@@ -245,6 +245,8 @@ uv run pr-harness context \
 `WorkingContext` 每轮从工具事实重建一个小账本，包含版本、已读取范围、真实检查证据 ID、剩余读取预算和省略数量。账本由程序生成，因此不会依赖模型是否把证据 ID 摘要正确。
 
 自动历史压缩复用 Deep Agents 的摘要组件。本项目统一预算并注入账本与冻结记忆；完整历史和外置文件通过底座状态保留。账本不是全文副本，记录被省略时会明确计数。
+
+**片段索引练习**：阅读[统一代码片段索引](CONTEXT_FRAGMENTS.md)，运行 `uv run pytest -q tests/test_context_fragments.py`。从报告的 `context.assembly.fragment_index` 找到某个读取来源，再检查 `requests[].source_fragments`。解释为什么片段仍被归档，摘要后却不一定还在这次请求中；为什么部分搜索行、分散邻域和符号关联均不能当作完整文件审查。
 
 阅读 [持久上下文测试](../tests/test_durable_context.py) 的 `test_unified_context_survives_native_compaction_and_restores_files`。测试实际触发压缩，再重建图验证事实与原文恢复；不能仅通过“demo 没报错”证明长上下文压缩正确。
 

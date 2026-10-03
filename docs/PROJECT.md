@@ -34,6 +34,8 @@ Deep Agents 提供通用运行、上下文摘要、工具结果落盘、记忆�
 
 当前装配入口是 **ContextManager + BudgetPolicy**。MemoryStore 先冻结本仓库有效人工反馈候选；ContextManager 根据改动路径与运行中实际代码读取/搜索命中重新选择预算内的反馈，将其和 ReviewState 的可验证事实注入，再交给同一个 SDK 摘要器压缩历史，最后校验完整请求。没有再叠加 Letta、Mem0 或其他运行框架。候选版本、展示、省略和恢复流程见[按文件召回](DYNAMIC_MEMORY.md)。
 
+`FragmentIndex` 从冻结初始材料和实际读取/搜索回执重建文件、版本与行范围索引，关联静态 Python 声明，记录摘要之后每次请求的字面代码输入。工作账本保留有限引用，可按固定版本重读；原始材料归档与本次输入展示分别记录。详见[代码片段索引](CONTEXT_FRAGMENTS.md)。
+
 `IncrementalStore` 为同一 PR 保存完成基线；在祖先关系、merge base 和配置一致时，将更新路径传给现有上下文选择器。纯语法检查按源码内容与编译器复用，保留本次 SHA 和原检查来源；模型结论和跨运行单元测试重新产生。计划随 run 冻结并进入原有恢复校验。详见[增量调度与缓存](INCREMENTAL_REVIEW.md)，云端跨 job 共享待实现。
 
 LangGraph SQLite checkpoint 保存消息、StateBackend 文件及 ReviewState。ReviewSession 只是工具执行时的视图，工具事务返回累积 state 并按序号合并；执行回执独立保存意图、结果与全局用量，补足“执行完成但图状态还未提交”的中断窗口。人工记忆、运行 checkpoint、执行回执各自有清楚的生命周期。新增[版本化反馈文件](CLOUD_MEMORY.md)供独立云端 job 读取，报告追溯文件提交与稳定 UID，两次独立云端读取已验收；checkpoint 仍不跨 job 恢复。详见 [统一设计与实现边界](CONTEXT_MEMORY_DESIGN.md)。

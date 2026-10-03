@@ -5,7 +5,7 @@ import json
 from pathlib import PurePosixPath
 
 from .models import ContextItem, ContextPack
-from .snapshot import Snapshot
+from .snapshot import Snapshot, git_lines
 
 _OMITTED_MARKER = "\n[OMITTED sections: context is incomplete; see context.omitted.]\n"
 _MAX_CHANGED_FILES = 40
@@ -45,18 +45,34 @@ class _Builder:
         if message not in self.omitted:
             self.omitted.append(message)
 
-    def add(self, path: str, reason: str, content: str, allowance: int) -> int:
+    def add(
+        self, path: str, reason: str, content: str, allowance: int, *, kind: str = "numbered"
+    ) -> int:
         prefix = f"\n### {json.dumps(path, ensure_ascii=False)} ({reason})\n"
         room = min(self.remaining, allowance)
         if room <= len(prefix) + 30:
             self.omit(f"{path} ({reason}): character budget")
             return 0
         content_room = room - len(prefix)
+        source_chars = complete_chars = len(content)
         if len(content) > content_room:
             marker = "\n[content truncated]\n"
-            content = content[: max(0, content_room - len(marker))] + marker
+            content = content[: max(0, content_room - len(marker))]
+            source_chars = len(content)
+            complete_chars = content.rfind("\n") + 1
+            content += marker
             self.omit(f"{path} ({reason}): content truncated")
-        self.items.append(ContextItem(path, reason, content))
+        self.items.append(
+            ContextItem(
+                path=path,
+                reason=reason,
+                content=content,
+                kind=kind,
+                content_start=self.used + len(prefix),
+                source_chars=source_chars,
+                complete_chars=complete_chars,
+            )
+        )
         self.parts.append(prefix + content)
         count = len(prefix) + len(content)
         self.used += count
@@ -70,7 +86,7 @@ class _Builder:
 
 
 def _numbered(text: str, *, max_lines: int = 160) -> str:
-    lines = text.splitlines()
+    lines = git_lines(text)
     result = "\n".join(f"{index}: {line}" for index, line in enumerate(lines[:max_lines], 1))
     if len(lines) > max_lines:
         result += "\n[remaining lines omitted]"
@@ -78,7 +94,7 @@ def _numbered(text: str, *, max_lines: int = 160) -> str:
 
 
 def _neighborhood(text: str, ranges: tuple[tuple[int, int], ...]) -> str:
-    lines = text.splitlines()
+    lines = git_lines(text)
     selected: set[int] = set()
     if not ranges:
         selected.update(range(min(80, len(lines))))
@@ -294,7 +310,7 @@ def _add_related(
                 path,
                 reason,
                 snippet,
-                len(content.splitlines()) > 160,
+                len(git_lines(content)) > 160,
             )
         )
     related.sort(key=lambda entry: (not entry[0], not entry[1], entry[2]))
@@ -370,6 +386,7 @@ def build_context(
             "PR diff against merge base",
             changed.patch,
             min(allowance, core_budget),
+            kind="diff",
         )
         if changed.path not in snapshot.head_files:
             builder.omit(f"{changed.path}: no regular HEAD file (deleted, symlink, or submodule)")
@@ -412,6 +429,8 @@ def build_context(
         except (ValueError, FileNotFoundError) as exc:
             builder.omit(f"{path}: {exc}")
             continue
-        config_budget -= builder.add(path, "project configuration", content, config_budget)
+        config_budget -= builder.add(
+            path, "project configuration", content, config_budget, kind="raw"
+        )
     _add_related(snapshot, builder, {changed.path for changed in changes}, changed_symbols)
     return builder.finish()

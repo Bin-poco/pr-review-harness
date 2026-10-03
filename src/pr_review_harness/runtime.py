@@ -39,7 +39,7 @@ from pr_review_harness.models import Finding, ReviewSession
 from pr_review_harness.persistence import ModelAccounting, RunStore, atomic_json, identity
 from pr_review_harness.review_state import ExecutionUnknown, ReceiptStateBackend, ReviewFacts
 from pr_review_harness.skills import SKILLS_ROOT, skill_files
-from pr_review_harness.snapshot import Snapshot
+from pr_review_harness.snapshot import Snapshot, git_lines
 from pr_review_harness.state import ReviewState, dump_session, load_session
 from pr_review_harness.submission import SubmissionGuard
 from pr_review_harness.tool_routing import (
@@ -434,6 +434,7 @@ def _review(
             "incremental": {**plan, "check_cache": cache_manifest(session.evidence)},
             "submission": submission.manifest(),
             "working_context": manager.working.manifest(),
+            "context_assembly": manager.manifest(),
             "memory_snapshot": artifacts["memory"],
             "budget_usage": {
                 **accounting.manifest(),
@@ -637,14 +638,14 @@ def _review_tools(snapshot, session, checks, lock, policy: BudgetPolicy | None =
             try:
                 if start_line < 1 or end_line < start_line or end_line - start_line >= 160:
                     raise ValueError("Request 1–160 lines with positive line numbers.")
-                lines = snapshot.read_file(path, version).splitlines()
+                lines = git_lines(snapshot.read_file(path, version))
                 text = "\n".join(
                     f"{i + 1}: {lines[i]}" for i in range(start_line - 1, min(end_line, len(lines)))
                 )
                 remaining = max(0, policy.read_chars - session.read_chars)
                 output = {"path": path, "version": version, "content": text[:remaining]}
                 output["truncated"] = len(text) > remaining
-                returned = output["content"].splitlines()
+                returned = git_lines(output["content"])
                 # A partial final line is excluded from the fully returned range.
                 complete = len(returned) - int(
                     output["truncated"] and not output["content"].endswith("\n")
@@ -677,12 +678,19 @@ def _review_tools(snapshot, session, checks, lock, policy: BudgetPolicy | None =
                 if inspected > 200:
                     break
                 try:
-                    lines = snapshot.read_file(path).splitlines()
+                    lines = git_lines(snapshot.read_file(path))
                 except (ValueError, FileNotFoundError):
                     continue
                 for number, line in enumerate(lines, 1):
                     if query in line:
-                        matches.append({"path": path, "line": number, "text": line[:240]})
+                        matches.append(
+                            {
+                                "path": path,
+                                "line": number,
+                                "text": line[:240],
+                                "text_truncated": len(line) > 240,
+                            }
+                        )
                     if len(matches) >= 12:
                         break
                 if len(matches) >= 12:

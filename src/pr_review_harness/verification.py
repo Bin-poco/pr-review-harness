@@ -32,7 +32,7 @@ from pr_review_harness.persistence import (
     model_identity,
 )
 from pr_review_harness.review_state import ReceiptStateBackend, ReviewFacts
-from pr_review_harness.snapshot import Snapshot
+from pr_review_harness.snapshot import Snapshot, git_lines
 from pr_review_harness.state import latest
 
 VERIFY_PROMPT = """You are an independent verifier for proposed Python PR defects.
@@ -214,7 +214,7 @@ def _tools(
                 if start_line < 1 or end_line < start_line or end_line - start_line >= 120:
                     raise ValueError("Request 1–120 lines with positive line numbers.")
                 session.read_attempts.add((path, version))
-                lines = snapshot.read_file(path, version).splitlines()
+                lines = git_lines(snapshot.read_file(path, version))
                 content = "\n".join(
                     f"{line + 1}: {lines[line]}"
                     for line in range(start_line - 1, min(end_line, len(lines)))

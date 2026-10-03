@@ -1,6 +1,6 @@
 # 上下文与记忆统一设计及实现
 
-初版日期：2026-10-02；2026-10-03 更新运行中按文件召回。原有 86 项测试为统一改造前基线；已落地 A–D，E 已有可运行的四组实验入口。工程验收见 [VALIDATION.md](VALIDATION.md)。已有真实 PR 开发/封存数据与首轮模型运行；独立人工质量复核和重复实验仍待完成。
+初版日期：2026-10-02；2026-10-03 更新运行中按文件召回与代码片段索引。原有 86 项测试为统一改造前基线；已落地 A–D，E 已有可运行的四组实验入口。工程验收见 [VALIDATION.md](VALIDATION.md)。已有真实 PR 开发/封存数据与首轮模型运行；独立人工质量复核和重复实验仍待完成。
 
 本项目依赖 Deep Agents **0.7.21**、LangGraph SQLite checkpointer **3.1.1**；行为以 `uv.lock` 安装源码为准。**Deep Agents/LangGraph 是唯一运行主线，SQLite 保存本地持久数据。** Letta、Mem0、OpenHands 只提供机制参考，没有作为额外运行框架接入。
 
@@ -50,6 +50,7 @@ ContextManager 替换 SDK 的 SummarizationMiddleware 槽位，先注入工作�
 | `snapshot.py` / `context.py` | 固定 SHA、merge base、差异行、受限 AST 相关材料选择 |
 | `budget.py` | 单一预算配置、窗口来源、完整输入估计与限额 |
 | `context_manager.py` | 材料装配、注入、原生压缩适配、最终 guard、展示清单 |
+| `context_fragments.py` | 初始/读取/搜索代码的统一位置索引、静态符号关联、摘要后字面代码输入记录 |
 | `state.py` / `review_state.py` | 可保存事实、序号合并、工具事务和回执重放 |
 | `persistence.py` | 运行身份、不可变 artifacts、锁、执行回执与累计用量 |
 | `working_context.py` | 从真实工具事实渲染有限工作状态，不存模型猜测 |
@@ -92,7 +93,7 @@ ChatOpenAI 适配器估计消息 token，工具 schema 另行序列化计数，�
 | FeedbackRecord | source_run_id、finding_id、rule_key、反馈、范围、有效期、状态、替换关系；MemoryStore |
 | ExecutionReceipt | 工具/模型尝试身份、stage、started/completed 状态、结果或未知用量；独立 SQLite |
 
-读取轨迹区分请求范围和实际完整返回范围；部分最后一行不算完整覆盖。初始 AST 材料清单记录路径、理由、hash 和两版身份；还未提供统一的逐片段行范围索引。原始材料保留在 artifacts，报告记录实际展示 hash 和截断，不能将裁剪后的展示说成全文。
+读取轨迹区分请求范围和实际完整返回范围；部分最后一行不算完整覆盖。现在初始材料、代码读取与搜索命中进入同一片段索引，记录固定版本、文件、行范围、完整性、静态符号关联与原始来源；最终 guard 在原生摘要后记录本次字面代码输入。工作账本只保留有限引用，不等同于原文展示。原始材料仍在 artifacts/trace，索引由冻结材料与回执重建。详细设计与边界见 [CONTEXT_FRAGMENTS.md](CONTEXT_FRAGMENTS.md)。
 
 证据 ID 在保存状态中恢复，CheckRunner 缓存从已完成证据重建，不会因重启重新编号。finding ID 根据 run_id 与规范化内容生成，可供人工反馈关联。
 

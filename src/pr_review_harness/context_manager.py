@@ -9,6 +9,7 @@ from langchain_core.messages import SystemMessage
 
 from pr_review_harness.budget import BudgetExceeded, RequestCounter
 from pr_review_harness.context import build_context
+from pr_review_harness.context_fragments import FragmentIndex
 from pr_review_harness.memory_recall import select_frozen
 from pr_review_harness.state import ReviewState
 from pr_review_harness.working_context import WorkingContext
@@ -53,6 +54,8 @@ class ContextManager(AgentMiddleware):
         self.backend = backend
         self.counter = RequestCounter(model, policy)
         self.working = WorkingContext(snapshot, session, context.text, policy=policy)
+        self.fragments = FragmentIndex(snapshot, session, context)
+        self.working.fragments = self.fragments
         self.memory = memory
         self.memory_pool = memory_pool
         self.session = session
@@ -63,7 +66,7 @@ class ContextManager(AgentMiddleware):
         self.state_schema = self.summary.state_schema
         self.requests = []
         self.materials = []
-        for item in context.items:
+        for index, item in enumerate(context.items):
             self.materials.append(
                 {
                     "id": hashlib.sha256(
@@ -71,12 +74,23 @@ class ContextManager(AgentMiddleware):
                     ).hexdigest(),
                     "path": item.path,
                     "reason": item.reason,
+                    "kind": item.kind,
+                    "fragment_ids": [
+                        record["id"]
+                        for record in self.fragments.records.values()
+                        if any(
+                            origin["source"] == "initial" and origin["item"] == index
+                            for origin in record["origins"]
+                        )
+                    ],
                     "source": "immutable git snapshot",
                     "head_sha": snapshot.head_sha,
                     "merge_base_sha": snapshot.merge_base_sha,
                     "sha256": hashlib.sha256(item.content.encode()).hexdigest(),
                     "chars": len(item.content),
-                    "truncated": "[content truncated]" in item.content,
+                    "truncated": item.source_chars < len(item.content)
+                    if item.kind != "legacy"
+                    else "[content truncated]" in item.content,
                 }
             )
 
@@ -191,6 +205,11 @@ class ContextManager(AgentMiddleware):
             count = self.counter(messages, tools=actual.tools)
             if count > self.policy.input_limit:
                 raise BudgetExceeded(f"Complete request {count} exceeds {self.policy.input_limit}")
+            initial_present = any(
+                m.type == "human" and m.content == initial_display for m in actual.messages
+            )
+            actual_initial = initial_display if initial_present else ""
+            source_fragments = self.fragments.visible(actual.messages, initial_display)
             self.requests.append(
                 {
                     "size": count,
@@ -203,8 +222,15 @@ class ContextManager(AgentMiddleware):
                     "memory_record_ids": [record["id"] for record in displayed],
                     "memory_display_truncated": memory != selected_memory,
                     "memory_recall": selection,
-                    "initial_display_sha256": hashlib.sha256(initial_display.encode()).hexdigest(),
-                    "initial_display_truncated": initial_display != self.initial_text,
+                    "initial_display_sha256": hashlib.sha256(actual_initial.encode()).hexdigest(),
+                    "initial_display_present": initial_present,
+                    "initial_display_chars": len(actual_initial),
+                    "initial_display_truncated": initial_present
+                    and initial_display != self.initial_text,
+                    "source_fragments": source_fragments,
+                    "fragment_index_sha256": self.fragments.manifest()["sha256"],
+                    "fragment_trace_events": len(self.session.trace),
+                    "unindexed_fragment_count": self.fragments.omitted,
                 }
             )
             return handler(actual)
@@ -264,6 +290,7 @@ class ContextManager(AgentMiddleware):
             "policy": self.policy.manifest(),
             "materials": self.materials,
             "requests": self.requests,
+            "fragment_index": self.fragments.manifest(),
             "memory_recall": (
                 {
                     "mode": "frozen candidates selected by actual file activity",

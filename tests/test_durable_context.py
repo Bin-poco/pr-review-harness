@@ -340,6 +340,15 @@ def test_unified_context_survives_native_compaction_and_restores_files(tmp_path,
     assert report["budget_usage"]["model_attempts"] > len(model.prompts)
     assert "check-001" in str(model.prompts[-1])
     assert "CONFIRMED_MEMORY_AFTER_COMPACTION" in str(model.prompts[-1])
+    assembly = report["context"]["assembly"]
+    assert not assembly["requests"][-1]["initial_display_present"]
+    assert assembly["requests"][-1]["initial_display_chars"] == 0
+    ledger = assembly["working"]["final_state"]
+    assert '"fragments"' in ledger
+    # Fragment IDs survive as references, while summarized-away source does not
+    # appear in the post-summary request's literal source visibility list.
+    if not any(m.type == "tool" and m.name == "read_code" for m in model.prompts[-1]):
+        assert assembly["requests"][-1]["source_fragments"] == []
     assert all(r["size"] <= policy.input_limit for r in report["context"]["assembly"]["requests"])
     restored = review(
         snapshot,
@@ -350,6 +359,7 @@ def test_unified_context_survives_native_compaction_and_restores_files(tmp_path,
         resume=True,
     )
     assert restored["evidence"] == report["evidence"]
+    assert restored["context"]["assembly"]["fragment_index"] == assembly["fragment_index"]
     assert restored["budget_usage"] == report["budget_usage"]
     from langgraph.checkpoint.sqlite import SqliteSaver
 

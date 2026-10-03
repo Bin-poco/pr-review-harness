@@ -8,7 +8,7 @@
 |---|---|
 | Agent 运行 | 真实 Deep Agents 模型 ↔ 工具循环；阶段与全局调用预算，包含摘要和失败尝试 |
 | PR 输入 | 本地 Git base/head 或 GitHub PR 链接；固定 SHA，使用 merge base 归因，获取前后确认远程版本 |
-| 上下文 | diff、变更邻域、配置；AST 定位被改动函数/类，优先选相关调用方与测试；ContextManager 统一组装；完整请求预算校验；每轮刷新版本/证据工作状态 |
+| 上下文 | diff、变更邻域、配置；AST 关联调用方与测试；统一代码片段索引与每次实际输入记录；ContextManager 组装、预算校验；每轮刷新版本/证据与有限片段引用 |
 | 证据与执行 | Python 语法检查；可选 unittest；双版本对照；Docker 固定镜像、无网络、只读与资源/日志/时间上限 |
 | 记忆 | SQLite 持久保存人工反馈；按仓库、路径范围、有效期筛选；支持修订/撤销/替换历史、run/finding 来源、主题分组及冻结快照；版本化 JSON 支持云端跨 job 读取 |
 | 持久恢复 | LangGraph SQLite checkpoint 保存消息、临时文件与事实状态；执行回执保存检查结果与累计用量；固定版本 resume |
@@ -189,6 +189,7 @@ uv run pr-harness memory feedback --repo /你的/仓库 \
 - [执行隔离与自动入口的第二阶段验证](docs/LANDING_V2.md)
 - [本地评估器与消融方案](docs/EVALUATION.md)
 - [上下文与记忆统一设计、参考来源及落地顺序](docs/CONTEXT_MEMORY_DESIGN.md)
+- [代码片段索引、摘要后的输入可见性与恢复](docs/CONTEXT_FRAGMENTS.md)
 - [底座版本、来源与贡献归属](docs/ORIGIN.md)
 - [首版验收记录](docs/VALIDATION.md)
 
