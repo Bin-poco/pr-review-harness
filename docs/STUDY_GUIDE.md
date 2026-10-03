@@ -441,6 +441,8 @@ uv run --env-file .env pr-harness demo --live \
 
 ## 10. 可靠性与 GitHub：从设计读到实现
 
+新增[增量调度与缓存学习路线](INCREMENTAL_REVIEW.md)。阅读 `incremental.py` 与 `test_incremental.py`，沿着同一 PR 的“首次审查 → 追加提交 → 修复 → 配置改变 → resume”解释生命周期。重点区分增量调度、纯检查缓存、人工反馈和当次 checkpoint；它们各自保存的内容和失效条件不同。
+
 ### 10.1 提交修复
 
 阅读 [submission.py](../src/pr_review_harness/submission.py) 和 [test_submission.py](../tests/test_submission.py)。这是针对首轮真实故障的已实现改造。
@@ -475,7 +477,7 @@ uv run --env-file .env pr-harness demo --live \
 
 首轮配置由 [FREEZE.json](../evaluation/independent_real_prs/FREEZE.json) 记录。修改源文件后旧 freeze 的当前输入校验会失败，属于预期行为；后续实验应建立新版本记录并保留首轮资料。
 
-[PharosRAG 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)已完成业务仓库部署与非 Draft 事件审查，可对照 PR #5、Actions 日志和结构化摘要学习跨仓库接入。已验收[跨 job 人工反馈读取](CLOUD_MEMORY.md)；后续可继续做云端 checkpoint 恢复、队列与增量审查。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
+[PharosRAG 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)已完成业务仓库部署与非 Draft 事件审查，可对照 PR #5、Actions 日志和结构化摘要学习跨仓库接入。已验收[跨 job 人工反馈读取](CLOUD_MEMORY.md)；本机增量调度与语法缓存已实现；后续可继续做云端 checkpoint 恢复、队列与跨 job 缓存。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
 
 ### 10.3 执行隔离与自动事件
 
@@ -531,6 +533,7 @@ uv run --env-file .env pr-harness demo --live \
 
 - [上下文与记忆统一设计](CONTEXT_MEMORY_DESIGN.md)
 - [跨次云端人工反馈记忆](CLOUD_MEMORY.md)
+- [增量调度与语法检查缓存](INCREMENTAL_REVIEW.md)
 - [评测设计](EVALUATION.md)
 - [当前业务范围](PROJECT.md)
 - [真实模型首轮结果](../evaluation/independent_real_prs/FIRST_RUN.md)

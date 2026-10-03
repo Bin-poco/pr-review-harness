@@ -17,15 +17,18 @@
 | 自动审查 | Actions 工作流与事件入口；可信源码、事件版本校验、同 PR 并发取消、默认预览；云端手动预览与 Draft 跳过已验收 |
 | 审查技能 | 两个短 playbook 通过 Deep Agents Skills 按需读取，分别针对边界回归和 API 兼容 |
 | 工具路由 | list_code_files 分页列出固定版本仓库文件；区分仓库读取与虚拟技能/记忆/笔记，误用路径给出纠正提示并保存回执 |
+| 增量调度与缓存 | 更新路径优先进入上下文，保留完整 PR 范围；纯语法结果按源内容/编译器复用；配置、merge base 或祖先关系变化时回退 |
 | 独立核验 | 可选第二轮 Agent，重新读取 base/head，对原意见给出支持、驳回或不确定的判断；保留原意见与轨迹 |
 | 本地评估 | 将保存的报告与固定版本人工标注比较，输出位置命中候选指标、遗漏、重复和证据诊断；四组上下文/记忆消融入口 |
 | 报告 | Markdown + JSON；head 行号、证据 ID、版本信息、工具轨迹、用量与耗时 |
 
-**当前是可运行的工程原型。** GitHub 手动发布、Docker 执行和自动审查入口已实现；Actions 工作流经静态检查、事件入口经本机真实模型联调，并完成[云端手动预览与 Draft 事件跳过验收](docs/CLOUD_ACCEPTANCE.md)。已通过两次独立云端运行验收[版本化人工反馈的跨 job 读取](docs/CLOUD_MEMORY.md)，云端 checkpoint 恢复、增量审查和部署运维仍待完成。已完成 [3 个 Click PR 开发案例](evaluation/click_real_prs/FIRST_RUN.md)和 [18 个跨仓库公开 PR 的封存试跑](evaluation/independent_real_prs/FIRST_RUN.md)。原试跑中 36 次审查有 3 次未能提交有效结果，本次[故障重放](docs/LANDING_V1.md)三例均完成，其中两例观察到截断后的修复提交。位置命中与误报仍需逐条根因复核，不能作为准确率结论。AST 关联是静态启发式，记忆检索采用确定性筛选；第二轮核验也只是模型意见，不能替代人工判断。
+**当前是可运行的工程原型。** GitHub 手动发布、Docker 执行和自动审查入口已实现；Actions 工作流经静态检查、事件入口经本机真实模型联调，并完成[云端手动预览与 Draft 事件跳过验收](docs/CLOUD_ACCEPTANCE.md)。已通过两次独立云端运行验收[版本化人工反馈的跨 job 读取](docs/CLOUD_MEMORY.md)，本机增量调度与语法缓存已实现；云端 checkpoint 恢复、跨 job 缓存和部署运维仍待完成。已完成 [3 个 Click PR 开发案例](evaluation/click_real_prs/FIRST_RUN.md)和 [18 个跨仓库公开 PR 的封存试跑](evaluation/independent_real_prs/FIRST_RUN.md)。原试跑中 36 次审查有 3 次未能提交有效结果，本次[故障重放](docs/LANDING_V1.md)三例均完成，其中两例观察到截断后的修复提交。位置命中与误报仍需逐条根因复核，不能作为准确率结论。AST 关联是静态启发式，记忆检索采用确定性筛选；第二轮核验也只是模型意见，不能替代人工判断。
 
 ## 运行示例
 
 新增[工具路由设计与云端验收](docs/TOOL_ROUTING.md)：真实预览已使用仓库文件列表，两个技能与跨次人工规则正常加载；本机完整测试 216 项通过。该演示验证接入行为，尚无成本或质量改善结论。
+
+新增[增量审查设计与学习路线](docs/INCREMENTAL_REVIEW.md)：`review` / `github-review` 添加 `--incremental` 可使用本机持久基线与语法缓存；模型结论和单元测试在新运行中重新产生，云端跨 job 共享尚未接入。
 
 需要 Python 3.11+、Git、uv。克隆后在项目目录执行：
 
@@ -177,6 +180,7 @@ uv run pr-harness memory feedback --repo /你的/仓库 \
 - [公开仓库配置与首次云端预览](docs/GITHUB_SETUP.md)
 - [真实云端预览与 Draft 事件验收](docs/CLOUD_ACCEPTANCE.md)
 - [跨次云端人工反馈记忆与维护步骤](docs/CLOUD_MEMORY.md)
+- [PR 更新后的增量调度、检查缓存与源码学习](docs/INCREMENTAL_REVIEW.md)
 - [提交可靠性与落地第一阶段记录](docs/LANDING_V1.md)
 - [容器执行、自动审查部署与源码学习](docs/EXECUTION_AND_AUTOMATION.md)
 - [执行隔离与自动入口的第二阶段验证](docs/LANDING_V2.md)
@@ -190,6 +194,6 @@ uv run pytest
 uv run ruff check src tests
 ```
 
-统一设计 A–D 已实现，E 的四组实验入口已实现；跨仓库试点已封存并完成首轮运行，提交修复、手动 GitHub 接入、Docker 执行与自动入口已实现。独立人工审查和规划的 24 例正式评测集仍待完成。本仓库云端手动预览、PharosRAG 部署与非 Draft 自动预览均已验收，人工确认反馈的跨 job 读取也已完成两轮验收。接下来完善云端 checkpoint 恢复与增量审查，同时完成重复运行、根因复核和固定预算消融，再形成有数据支撑的简历表述。
+统一设计 A–D 已实现，E 的四组实验入口已实现；跨仓库试点已封存并完成首轮运行，提交修复、手动 GitHub 接入、Docker 执行与自动入口已实现。独立人工审查和规划的 24 例正式评测集仍待完成。本仓库云端手动预览、PharosRAG 部署与非 Draft 自动预览均已验收，人工确认反馈的跨 job 读取也已完成两轮验收。接下来完善云端 checkpoint 恢复与跨 job 缓存，同时完成重复运行、根因复核和固定预算消融，再形成有数据支撑的简历表述。
 
 设计参考：[Anthropic 上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[长任务 Harness 的生成与评估分工](https://www.anthropic.com/engineering/harness-design-long-running-apps)、[Agent 评估](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)及 [Deep Agents Skills 文档](https://docs.langchain.com/oss/python/deepagents/skills)。这些资料提供设计思路，项目效果仍需自身数据验证。

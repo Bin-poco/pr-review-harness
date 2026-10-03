@@ -30,6 +30,8 @@ from pr_review_harness.budget import DEFAULT_POLICY, BudgetPolicy
 from pr_review_harness.checks import CheckRunner
 from pr_review_harness.context_manager import ContextManager
 from pr_review_harness.execution import ExecutionPolicy
+from pr_review_harness.incremental import IncrementalStore, cache_manifest, configuration_digest
+from pr_review_harness.incremental import review_key as incremental_key
 from pr_review_harness.memory import MemoryRecall
 from pr_review_harness.models import Finding, ReviewSession
 from pr_review_harness.persistence import ModelAccounting, RunStore, atomic_json, identity
@@ -191,6 +193,9 @@ def review(
     retry_unknown: bool = False,
     source: dict | None = None,
     execution: ExecutionPolicy | None = None,
+    incremental: bool = False,
+    incremental_dir: Path = Path(".pr-harness/incremental"),
+    review_key: str | None = None,
 ) -> dict:
     """Review fixed revisions; optional SQLite checkpoints survive a new process.
 
@@ -225,6 +230,9 @@ def review(
             stack,
             source,
             execution,
+            incremental,
+            incremental_dir,
+            review_key,
         )
 
 
@@ -243,16 +251,28 @@ def _review(
     stack,
     source,
     execution,
+    incremental,
+    incremental_dir,
+    review_key,
 ):
     started = time.monotonic()
     expected = {
         **identity(snapshot, model, policy, strategy, run_tests, mode, execution),
         "source": source,
+        "incremental": {"enabled": False},
     }
+    reuse = IncrementalStore(incremental_dir) if incremental else None
+    if reuse:
+        expected["incremental"] = {
+            "enabled": True,
+            "directory": str(reuse.path.parent),
+            "review_key": incremental_key(snapshot, source, review_key),
+        }
     if resume:
         manifest, artifacts = store.validate(expected)
         memory = artifacts["memory"]["text"]
         memory_manifest = {k: v for k, v in artifacts["memory"].items() if k != "text"}
+        plan = artifacts.get("incremental", {"enabled": False})
         from pr_review_harness.models import ContextItem, ContextPack
 
         value = artifacts["context"]
@@ -265,7 +285,6 @@ def _review(
         if retry_unknown:
             store.reset_unknown_checks()
     else:
-        context = ContextManager.select(snapshot, model, policy, strategy)
         if isinstance(memory, MemoryRecall):
             memory_manifest = memory.manifest
             if memory_manifest["repo_id"] != snapshot.repo_id:
@@ -278,10 +297,32 @@ def _review(
                 "Memory snapshot exceeds BudgetPolicy.memory_chars; recall within limit"
             )
         memory_manifest = {**memory_manifest, "sha256": hashlib.sha256(memory.encode()).hexdigest()}
+        frozen_memory = {"text": memory, **memory_manifest}
+        plan = (
+            reuse.plan(
+                snapshot,
+                expected["incremental"]["review_key"],
+                configuration_digest(expected, frozen_memory),
+            )
+            if reuse
+            else {"enabled": False}
+        )
+        context = ContextManager.select(
+            snapshot,
+            model,
+            policy,
+            strategy,
+            priority_paths=tuple(plan.get("updated_paths", [])),
+            update_from=plan["previous"]["head_sha"] if plan.get("mode") == "incremental" else None,
+        )
         artifacts = {"context": asdict(context), "memory": {"text": memory, **memory_manifest}}
+        if reuse:
+            artifacts["incremental"] = plan
         manifest = store.create(expected, artifacts) if store else {**expected, "run_id": run_id}
     session = ReviewSession()
-    checks = CheckRunner(snapshot, run_tests=run_tests, execution=execution)
+    checks = CheckRunner(
+        snapshot, run_tests=run_tests, execution=execution, reuse=reuse, run_id=run_id
+    )
     backend = ReceiptStateBackend()
     facts = ReviewFacts(session, checks, policy, store, backend=backend)
     manager = ContextManager(snapshot, session, context, memory, model, policy, backend)
@@ -373,6 +414,7 @@ def _review(
             "trace": session.trace,
             "review_control": scope.decisions,
             "tool_routing": routing_manifest(session.trace),
+            "incremental": {**plan, "check_cache": cache_manifest(session.evidence)},
             "submission": submission.manifest(),
             "working_context": manager.working.manifest(),
             "memory_snapshot": artifacts["memory"],
@@ -456,10 +498,13 @@ def _review(
         "trace": session.trace,
         "review_control": scope.decisions,
         "tool_routing": routing_manifest(session.trace),
+        "incremental": {**plan, "check_cache": cache_manifest(session.evidence)},
         "submission": submission.manifest(),
         "messages": [m.model_dump(mode="json") for m in messages],
         "persistence": str(store.path) if store else None,
     }
+    if reuse:
+        report["incremental"]["baseline_update"] = reuse.complete(snapshot, plan, run_id)
     if store:
         previous_path = store.path / "review.json"
         if resume and previous_path.exists():

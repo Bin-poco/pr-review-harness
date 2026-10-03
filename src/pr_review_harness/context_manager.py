@@ -75,20 +75,25 @@ class ContextManager(AgentMiddleware):
             )
 
     @staticmethod
-    def select(snapshot, model, policy, strategy):
+    def select(snapshot, model, policy, strategy, *, priority_paths=(), update_from=None):
         """Keep existing AST selection; reserve dynamic room under known windows."""
         chars = policy.context_chars
+        selection = {
+            "strategy": strategy,
+            "priority_paths": priority_paths,
+            "update_from": update_from,
+        }
         if policy.window_tokens:
             # A conservative first allocation; the final guard counts actual fixed
             # scaffolding and can reduce this further. No characters/4 conversion.
             counter = RequestCounter(model, policy)
             limit = min(10000, int(policy.input_limit * 0.4))
-            context = build_context(snapshot, max_chars=chars, strategy=strategy)
+            context = build_context(snapshot, max_chars=chars, **selection)
             while counter.text(context.text) > limit and chars > 256:
                 chars = max(256, chars * 3 // 4)
-                context = build_context(snapshot, max_chars=chars, strategy=strategy)
+                context = build_context(snapshot, max_chars=chars, **selection)
             return context
-        return build_context(snapshot, max_chars=chars, strategy=strategy)
+        return build_context(snapshot, max_chars=chars, **selection)
 
     def wrap_model_call(self, request, handler):
         request = request.override(

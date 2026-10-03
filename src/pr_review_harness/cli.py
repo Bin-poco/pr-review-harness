@@ -217,6 +217,22 @@ def _review_arguments(command, *, remote=False):
     command.add_argument("--verify-tool-calls", type=int, default=DEFAULT_POLICY.verify_tool_calls)
     command.add_argument("--runs-dir", type=Path, default=Path(".pr-harness/runs"))
     command.add_argument("--run-id")
+    command.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Prioritize PR updates and reuse pure syntax checks locally",
+    )
+    command.add_argument(
+        "--incremental-dir",
+        type=Path,
+        default=Path(".pr-harness/incremental"),
+        help="Trusted local baseline and syntax cache directory",
+    )
+    command.add_argument(
+        "--review-key",
+        help="Stable local review label across head updates; "
+        "GitHub reviews use the numeric repository ID and PR number",
+    )
 
 
 def _execution_arguments(command, *, default="docker"):
@@ -473,6 +489,11 @@ def _dispatch(arguments) -> int:
             retry_unknown=arguments.retry_unknown,
             source=manifest.get("source"),
             execution=ExecutionPolicy.from_manifest(manifest.get("execution")),
+            incremental=manifest.get("incremental", {}).get("enabled", False),
+            incremental_dir=Path(
+                manifest.get("incremental", {}).get("directory", ".pr-harness/incremental")
+            ),
+            review_key=manifest.get("incremental", {}).get("review_key"),
         )
         paths = write_report(report, arguments.out)
         print(f"Run: {report['run_id']}")
@@ -625,6 +646,9 @@ def _dispatch(arguments) -> int:
         model_calls=arguments.model_calls,
         tool_calls=arguments.tool_calls,
         source=source,
+        incremental=arguments.incremental,
+        incremental_dir=arguments.incremental_dir,
+        review_key=arguments.review_key,
     )
     paths = write_report(report, arguments.out)
     if arguments.verify:

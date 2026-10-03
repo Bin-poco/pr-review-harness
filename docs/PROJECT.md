@@ -34,6 +34,8 @@ Deep Agents 提供通用运行、上下文摘要、工具结果落盘、记忆�
 
 当前装配入口是 **ContextManager + BudgetPolicy**。MemoryStore 先按仓库/路径/期限召回人工反馈，生成冻结快照；ContextManager 将它和 ReviewState 的可验证事实注入，再交给同一个 SDK 摘要器压缩历史，最后校验完整请求。没有再叠加 Letta、Mem0 或其他运行框架。
 
+`IncrementalStore` 为同一 PR 保存完成基线；在祖先关系、merge base 和配置一致时，将更新路径传给现有上下文选择器。纯语法检查按源码内容与编译器复用，保留本次 SHA 和原检查来源；模型结论和跨运行单元测试重新产生。计划随 run 冻结并进入原有恢复校验。详见[增量调度与缓存](INCREMENTAL_REVIEW.md)，云端跨 job 共享待实现。
+
 LangGraph SQLite checkpoint 保存消息、StateBackend 文件及 ReviewState。ReviewSession 只是工具执行时的视图，工具事务返回累积 state 并按序号合并；执行回执独立保存意图、结果与全局用量，补足“执行完成但图状态还未提交”的中断窗口。人工记忆、运行 checkpoint、执行回执各自有清楚的生命周期。新增[版本化反馈文件](CLOUD_MEMORY.md)供独立云端 job 读取，报告追溯文件提交与稳定 UID，两次独立云端读取已验收；checkpoint 仍不跨 job 恢复。详见 [统一设计与实现边界](CONTEXT_MEMORY_DESIGN.md)。
 
 `SubmissionGuard` 保存提交修复状态，识别截断、缺失提交与无效参数/位置，按剩余预算限次要求重新提交。`github.py` 提供固定版本获取、发布预览、COMMENT 和重复记录检查；GitHub 人工反馈按数字仓库 ID 共享。见 [接入指南](GITHUB_INTEGRATION.md)和[本次运行记录](LANDING_V1.md)。
@@ -53,7 +55,7 @@ LangGraph SQLite checkpoint 保存消息、StateBackend 文件及 ReviewState。
 | 5：业务仓库自动预览已验收 | GitHub 手动链路、事件入口、默认预览工作流、容器执行 | Draft PR 真实发布/查重；Docker 隔离验证；云端手动预览、Draft 跳过与 PharosRAG 非 Draft 自动预览已验收 |
 | 5.1：已验收 | 版本化人工反馈的跨 job 读取 | 两次独立 hosted job 读取相同 UID/来源，并核对每次主审查请求实际展示 |
 | 5.2：已验收 | 仓库/虚拟存储工具路由 | 固定版本文件列表、原生工具说明覆盖、误用纠正及可恢复回执；本机 216 项测试与真实云端预览通过，见 [设计与验证](TOOL_ROUTING.md) |
-| 6 | 增量审查与缓存、评测完善 | 缓存按 SHA/模型/规则/记忆版本失效；基线和消融结果可重跑 |
+| 6：本机机制已实现 | 增量调度与纯语法缓存、评测完善 | 保留完整 PR 范围；配置与版本变化回退；风险测试可重跑，跨 job 共享和效果评测待完成 |
 
 当前版本验证“审查、核验、评估机制可以运行”。默认示例的结论由预设调用器给出，不证明模型效果；模型效果评测计划见 EVALUATION.md。
 

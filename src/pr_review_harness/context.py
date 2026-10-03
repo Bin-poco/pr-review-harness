@@ -313,7 +313,12 @@ def _add_related(
 
 
 def build_context(
-    snapshot: Snapshot, max_chars: int = 24000, *, strategy: str = "ast"
+    snapshot: Snapshot,
+    max_chars: int = 24000,
+    *,
+    strategy: str = "ast",
+    priority_paths: tuple[str, ...] = (),
+    update_from: str | None = None,
 ) -> ContextPack:
     """Select review inputs under a character budget, without claiming token precision."""
     if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1:
@@ -328,7 +333,14 @@ def build_context(
         f"Head commit: {snapshot.head_sha}\n"
         "Code locations refer to HEAD. Related-file selection is a bounded heuristic.\n"
     )
+    if update_from:
+        header += (
+            f"Update-aware scheduling since HEAD {update_from}: recently updated paths first.\n"
+            "Review the full PR against the merge base. Older findings are not reused; "
+            "untouched paths may still contain defects.\n"
+        )
     builder = _Builder(max_chars, header)
+
     # Spend the first context allocation on executable changes, then tests and
     # prose. Git's path ordering can otherwise let changelogs hide changed code.
     def priority(path: str) -> int:
@@ -336,19 +348,22 @@ def build_context(
             return 1 if _is_test(path) else 0
         return 2
 
-    changes = sorted(
-        snapshot.changed_files, key=lambda item: (priority(item.path), item.path)
-    )[:_MAX_CHANGED_FILES]
+    preferred = set(priority_paths)
+    ordered = sorted(
+        snapshot.changed_files,
+        key=lambda item: (priority(item.path), item.path not in preferred, item.path),
+    )
+    changes = ordered[:_MAX_CHANGED_FILES]
     changed_symbols: dict[str, frozenset[str]] = {}
     if len(snapshot.changed_files) > len(changes):
         builder.omit(f"changed-file context capped at {_MAX_CHANGED_FILES} files")
+        for changed in ordered[_MAX_CHANGED_FILES:]:
+            builder.omit(f"{changed.path}: changed-file context count limit")
     core_budget = int(builder.remaining * 0.70)
     per_section = max(200, min(3000, max_chars // 10))
     for changed in changes:
         allowance = (
-            max(200, min(4200, max_chars // 5))
-            if priority(changed.path) == 0
-            else per_section
+            max(200, min(4200, max_chars // 5)) if priority(changed.path) == 0 else per_section
         )
         core_budget -= builder.add(
             changed.path,

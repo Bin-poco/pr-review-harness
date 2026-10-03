@@ -48,6 +48,18 @@ def render_markdown(report: dict) -> str:
     )
     if (report.get("source") or {}).get("kind") == "github":
         lines.insert(2, f"PR：{report['source']['url']}\n")
+    incremental = report.get("incremental", {})
+    if incremental.get("enabled"):
+        cache = incremental["check_cache"]
+        lines.extend(
+            [
+                "增量调度：" + incremental["mode"] + "（" + incremental["reason"] + "）。",
+                "审查范围仍为整个 PR；旧模型意见未复用。",
+                f"语法检查缓存：命中 {cache['hits']} 次，未命中 {cache['misses']} 次；"
+                "单元测试重新执行。",
+                "",
+            ]
+        )
     if not report["findings"]:
         lines.extend(["未提交可报告的缺陷；这不代表已经证明没有缺陷。", ""])
     for finding in report["findings"]:

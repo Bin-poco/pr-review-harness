@@ -1,5 +1,6 @@
 """Run bounded checks on exported immutable snapshots."""
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -8,7 +9,9 @@ from pathlib import Path
 from uuid import uuid4
 
 from pr_review_harness.execution import ExecutionPolicy, bounded_process, docker_environment
+from pr_review_harness.incremental import IncrementalStore
 from pr_review_harness.models import CheckRun, Evidence
+from pr_review_harness.persistence import digest
 from pr_review_harness.snapshot import Snapshot
 
 _UNITTEST_DRIVER = """
@@ -57,6 +60,8 @@ class CheckRunner:
         run_tests: bool = False,
         timeout: int = 20,
         execution: ExecutionPolicy | None = None,
+        reuse: IncrementalStore | None = None,
+        run_id: str | None = None,
     ):
         self.snapshot = snapshot
         self.run_tests = run_tests
@@ -64,6 +69,13 @@ class CheckRunner:
         if run_tests:
             self.execution = self.execution.prepare()
         self.timeout = self.execution.timeout
+        self.reuse = reuse
+        self.run_id = run_id
+        self.syntax_identity = {
+            "python": sys.version,
+            "optimization": sys.flags.optimize,
+            "implementation": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        }
         self.cache: dict[tuple[str, str], Evidence] = {}
 
     def run(self, kind: str, path: str) -> Evidence:
@@ -100,11 +112,54 @@ class CheckRunner:
         except (ValueError, FileNotFoundError) as exc:
             return CheckRun(version, sha, "unavailable", None, str(exc))
         if kind == "syntax":
+            key = digest(
+                {
+                    "kind": kind,
+                    "repo_id": self.snapshot.repo_id,
+                    "path": path,
+                    "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+                    "compiler": self.syntax_identity,
+                }
+            )
+            saved = self.reuse.get_check(key) if self.reuse else None
+            if saved:
+                return CheckRun(
+                    version,
+                    sha,
+                    saved["status"],
+                    saved["exit_code"],
+                    saved["output"],
+                    {
+                        "status": "hit",
+                        "key": key,
+                        "origin_run_id": saved["run_id"],
+                        "origin_sha": saved["sha"],
+                    },
+                )
             try:
                 compile(source, path, "exec", dont_inherit=True)
+                status, code, output = "passed", 0, "Python compilation succeeded."
             except (SyntaxError, ValueError) as exc:
-                return CheckRun(version, sha, "failed", 1, str(exc))
-            return CheckRun(version, sha, "passed", 0, "Python compilation succeeded.")
+                status, code, output = "failed", 1, str(exc)
+            if self.reuse:
+                self.reuse.put_check(
+                    key,
+                    {
+                        "status": status,
+                        "exit_code": code,
+                        "output": output,
+                        "run_id": self.run_id,
+                        "sha": sha,
+                    },
+                )
+            return CheckRun(
+                version,
+                sha,
+                status,
+                code,
+                output,
+                {"status": "miss", "key": key} if self.reuse else None,
+            )
         with tempfile.TemporaryDirectory(prefix="pr-harness-check-") as tmp:
             root = Path(tmp)
             self.snapshot.export(version, root)

@@ -50,6 +50,7 @@ class CheckRun:
     status: str
     exit_code: int | None
     output: str
+    cache: dict | None = None
 
 
 @dataclass(frozen=True)
