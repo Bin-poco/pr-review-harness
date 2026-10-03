@@ -116,6 +116,7 @@ def state_profile(arguments):
         "no_memory": arguments.no_memory,
         "github_memory": arguments.github_memory,
         "github_memory_path": arguments.github_memory_path,
+        **({"cloud_syntax_cache": True} if getattr(arguments, "cloud_syntax_cache", False) else {}),
     }
 
 
@@ -237,7 +238,9 @@ def _download(client, endpoint):
     return data
 
 
-def download_checkpoint(client, context, selection):
+def download_trusted_artifact(
+    client, context, selection, *, prefix, member_name, max_bytes=MAX_ARCHIVE_BYTES
+):
     run_id, attempt = selection
     endpoint = f"/repos/{context.repository}"
     repository = client.request("GET", endpoint)
@@ -264,7 +267,7 @@ def download_checkpoint(client, context, selection):
         or run["head_repository"]["id"] != context.repository_id
     ):
         raise ValueError("Recovery dispatch source must be on the trusted default branch")
-    name = f"harness-state-{run_id}-{attempt}"
+    name = f"{prefix}-{run_id}-{attempt}"
     listing = client.request("GET", endpoint + f"/actions/artifacts?name={name}&per_page=100")
     if listing["total_count"] > 100:
         raise ValueError("Too many checkpoint artifacts with the same name")
@@ -276,20 +279,26 @@ def download_checkpoint(client, context, selection):
         artifact["expired"]
         or artifact["workflow_run"]["id"] != run_id
         or artifact["workflow_run"]["repository_id"] != context.repository_id
-        or artifact["size_in_bytes"] > MAX_ARCHIVE_BYTES
+        or artifact["size_in_bytes"] > max_bytes
     ):
         raise ValueError("Checkpoint artifact is expired, oversized or belongs to another run")
     data = _download(
         client, endpoint + f"/actions/artifacts/{_positive(artifact['id'], 'artifact ID')}/zip"
     )
+    if len(data) > max_bytes:
+        raise ValueError("Artifact download exceeds size limit")
     if artifact.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest():
         raise ValueError("GitHub checkpoint artifact digest differs from the download")
     # upload-artifact wraps the one application bundle in its own ZIP.
     with zipfile.ZipFile(io.BytesIO(data)) as outer:
-        if outer.namelist() != ["checkpoint.zip"]:
+        if outer.namelist() != [member_name]:
             raise ValueError("Unexpected checkpoint artifact members")
-        member = outer.getinfo("checkpoint.zip")
-        if member.file_size > MAX_ARCHIVE_BYTES:
+        member = outer.getinfo(member_name)
+        if (
+            member.file_size > max_bytes
+            or member.flag_bits & 1
+            or stat.S_ISLNK(member.external_attr >> 16)
+        ):
             raise ValueError("Checkpoint bundle exceeds archive size limit")
         bundle = outer.read(member)
     return bundle, {
@@ -300,6 +309,12 @@ def download_checkpoint(client, context, selection):
         "artifact_id": artifact["id"],
         "artifact_digest": artifact["digest"],
     }
+
+
+def download_checkpoint(client, context, selection):
+    return download_trusted_artifact(
+        client, context, selection, prefix="harness-state", member_name="checkpoint.zip"
+    )
 
 
 def restore_checkpoint(

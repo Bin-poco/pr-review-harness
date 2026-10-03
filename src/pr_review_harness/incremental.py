@@ -179,6 +179,26 @@ class IncrementalStore:
                 (self.MAX_CHECKS,),
             )
 
+    def recent_checks(self, limit: int) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT cache_key, value FROM syntax_checks ORDER BY rowid DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [{"key": key, "value": json.loads(value)} for key, value in rows]
+
+    def import_checks(self, entries: list[dict]):
+        """Install an already validated batch atomically; baselines are never imported."""
+        with self.connect() as conn:
+            conn.executemany(
+                "INSERT OR REPLACE INTO syntax_checks (cache_key, value) VALUES (?, ?)",
+                [(entry["key"], json.dumps(entry["value"])) for entry in entries],
+            )
+            conn.execute(
+                "DELETE FROM syntax_checks WHERE rowid NOT IN "
+                "(SELECT rowid FROM syntax_checks ORDER BY rowid DESC LIMIT ?)",
+                (self.MAX_CHECKS,),
+            )
+
 
 def cache_manifest(evidence) -> dict:
     runs = [run for item in evidence for run in (item.base, item.head)]

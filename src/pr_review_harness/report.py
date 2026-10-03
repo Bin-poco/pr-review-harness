@@ -60,6 +60,20 @@ def render_markdown(report: dict) -> str:
                 "",
             ]
         )
+    syntax_cache = report.get("syntax_cache", {})
+    if syntax_cache.get("enabled"):
+        lines.extend(
+            [
+                f"云端语法检查缓存：命中 {syntax_cache['hits']} 次，"
+                f"未命中 {syntax_cache['misses']} 次。",
+                (
+                    "本次恢复原审查，保留原有缓存凭据。"
+                    if report.get("resumed")
+                    else "缓存仅复用编译结果；本次模型审查重新执行。"
+                ),
+                "",
+            ]
+        )
     if not report["findings"]:
         lines.extend(["未提交可报告的缺陷；这不代表已经证明没有缺陷。", ""])
     for finding in report["findings"]:

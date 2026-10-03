@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import sqlite3
 import sys
 import zipfile
 from datetime import datetime
@@ -11,6 +12,11 @@ from pathlib import Path
 from pr_review_harness.automation import parse_event
 from pr_review_harness.benchmark import run_benchmark
 from pr_review_harness.budget import DEFAULT_POLICY, BudgetPolicy
+from pr_review_harness.cloud_cache import (
+    cache_identity,
+    export_syntax_cache,
+    restore_latest_syntax_cache,
+)
 from pr_review_harness.cloud_state import (
     CloudContext,
     download_checkpoint,
@@ -25,6 +31,7 @@ from pr_review_harness.demo import create_demo
 from pr_review_harness.evaluation import evaluate_report, load_gold
 from pr_review_harness.execution import ExecutionPolicy
 from pr_review_harness.github import PRRef, configured_client, fetch_snapshot, publish_report
+from pr_review_harness.incremental import IncrementalStore
 from pr_review_harness.memory import MemoryStore
 from pr_review_harness.memory_bundle import DEFAULT_MEMORY_PATH, load_github_memory, read_bundle
 from pr_review_harness.persistence import RunStore, atomic_json, identity
@@ -69,6 +76,12 @@ def parser() -> argparse.ArgumentParser:
     ci.add_argument(
         "--cloud-checkpoint", action="store_true", help="Prepare a resumable Actions state artifact"
     )
+    ci.add_argument(
+        "--cloud-syntax-cache",
+        action="store_true",
+        help="Reuse pure compilation results from this trusted workflow's recent completed jobs",
+    )
+    ci.add_argument("--syntax-cache-dir", type=Path, default=Path(".pr-harness/syntax-cache"))
     ci.add_argument(
         "--resume-run-id", help="Recover state from a trusted Actions run in this repository"
     )
@@ -392,6 +405,9 @@ def _dispatch(arguments) -> int:
     event = None
     cloud = None
     selection = None
+    cache_context = None
+    syntax_cache = None
+    syntax_cache_source = None
     if arguments.command == "cloud-export":
         repository = os.getenv("GITHUB_REPOSITORY", "")
         repository_id = int(os.getenv("GITHUB_REPOSITORY_ID", "0"))
@@ -421,6 +437,10 @@ def _dispatch(arguments) -> int:
             print(f"Automation skipped: {event.skip_reason}")
             return 0
         arguments.pr = event.ref.url
+        if arguments.cloud_syntax_cache:
+            if arguments.incremental:
+                raise ValueError("Cloud syntax caching uses full reviews without baseline import")
+            cache_context = CloudContext.from_environment(arguments.repository, event.repository_id)
         if (
             arguments.resume_run_id or arguments.pause_after_review
         ) and not arguments.cloud_checkpoint:
@@ -428,7 +448,7 @@ def _dispatch(arguments) -> int:
         if arguments.cloud_checkpoint:
             if arguments.send or arguments.incremental:
                 raise ValueError(
-                    "Cloud recovery currently supports preview without incremental caching"
+                    "Cloud recovery currently supports preview without incremental scheduling"
                 )
             cloud = CloudContext.from_environment(arguments.repository, event.repository_id)
             selection = resume_selection(cloud, arguments.resume_run_id, arguments.resume_attempt)
@@ -544,6 +564,11 @@ def _dispatch(arguments) -> int:
                 manifest.get("incremental", {}).get("directory", ".pr-harness/incremental")
             ),
             review_key=manifest.get("incremental", {}).get("review_key"),
+            syntax_cache=(
+                IncrementalStore(Path(manifest["syntax_cache"]["directory"]))
+                if manifest.get("syntax_cache", {}).get("enabled")
+                else None
+            ),
         )
         paths = write_report(report, arguments.out)
         print(f"Run: {report['run_id']}")
@@ -673,6 +698,16 @@ def _dispatch(arguments) -> int:
         raise ValueError("Use 1–10 verifier findings.")
     if not 1 <= arguments.verify_model_calls <= 50 or not 1 <= arguments.verify_tool_calls <= 100:
         raise ValueError("Use 1–50 verifier model calls and 1–100 verifier tool calls.")
+    if cache_context:
+        syntax_cache = IncrementalStore(arguments.syntax_cache_dir)
+        syntax_cache_source = (
+            {"status": "resume_uses_frozen_receipts", "entries": 0}
+            if selection
+            else restore_latest_syntax_cache(
+                configured_client(), cache_context, snapshot.repo_id, syntax_cache
+            )
+        )
+        atomic_json(arguments.out / "syntax-cache-import.json", syntax_cache_source)
     if not selection:
         store = MemoryStore(arguments.memory_db)
         if source and arguments.github_memory:
@@ -688,6 +723,9 @@ def _dispatch(arguments) -> int:
         expected = {
             **identity(snapshot, model, policy, arguments.context_strategy, False, "live"),
             "incremental": {"enabled": False},
+            **(
+                {"syntax_cache": cache_identity(arguments.syntax_cache_dir)} if syntax_cache else {}
+            ),
         }
         saved, restored_from = restore_checkpoint(
             bundle,
@@ -713,10 +751,11 @@ def _dispatch(arguments) -> int:
         memory = store.freeze_snapshot(
             snapshot.repo_id, [item.path for item in snapshot.changed_files], policy.memory_chars
         )
-        if cloud:
+        if cloud or cache_context:
             if arguments.run_id:
                 raise ValueError("Cloud runs assign their own stable run identity")
-            arguments.run_id = f"ci-{cloud.run_id}-{cloud.attempt}"
+            context = cloud or cache_context
+            arguments.run_id = f"ci-{context.run_id}-{context.attempt}"
     if cloud:
         write_pointer(
             arguments.out / "cloud-run.json",
@@ -726,25 +765,40 @@ def _dispatch(arguments) -> int:
             state_profile(arguments),
             restored_from,
         )
-    report = review(
-        snapshot,
-        model,
-        memory="" if arguments.no_memory else memory,
-        budget=policy,
-        runs_dir=arguments.runs_dir,
-        run_id=arguments.run_id,
-        resume=bool(selection),
-        run_tests=arguments.run_tests,
-        execution=_execution_policy(arguments),
-        context_chars=arguments.context_chars,
-        context_strategy=arguments.context_strategy,
-        model_calls=arguments.model_calls,
-        tool_calls=arguments.tool_calls,
-        source=source,
-        incremental=arguments.incremental,
-        incremental_dir=arguments.incremental_dir,
-        review_key=arguments.review_key,
-    )
+    try:
+        report = review(
+            snapshot,
+            model,
+            memory="" if arguments.no_memory else memory,
+            budget=policy,
+            runs_dir=arguments.runs_dir,
+            run_id=arguments.run_id,
+            resume=bool(selection),
+            run_tests=arguments.run_tests,
+            execution=_execution_policy(arguments),
+            context_chars=arguments.context_chars,
+            context_strategy=arguments.context_strategy,
+            model_calls=arguments.model_calls,
+            tool_calls=arguments.tool_calls,
+            source=source,
+            incremental=arguments.incremental,
+            incremental_dir=arguments.incremental_dir,
+            review_key=arguments.review_key,
+            syntax_cache=syntax_cache,
+            syntax_cache_source=syntax_cache_source,
+        )
+    finally:
+        if syntax_cache:
+            try:
+                result = export_syntax_cache(
+                    syntax_cache,
+                    cache_context,
+                    snapshot.repo_id,
+                    arguments.out.parent / "cache/syntax-cache.json",
+                )
+            except (ValueError, OSError, sqlite3.Error):
+                result = {"status": "unavailable", "entries": 0}
+            atomic_json(arguments.out / "syntax-cache-export.json", result)
     paths = write_report(report, arguments.out)
     if cloud and arguments.pause_after_review and not selection:
         atomic_json(

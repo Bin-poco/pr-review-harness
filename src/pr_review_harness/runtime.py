@@ -198,6 +198,8 @@ def review(
     incremental: bool = False,
     incremental_dir: Path = Path(".pr-harness/incremental"),
     review_key: str | None = None,
+    syntax_cache: IncrementalStore | None = None,
+    syntax_cache_source: dict | None = None,
 ) -> dict:
     """Review fixed revisions; optional SQLite checkpoints survive a new process.
 
@@ -235,6 +237,8 @@ def review(
             incremental,
             incremental_dir,
             review_key,
+            syntax_cache,
+            syntax_cache_source,
         )
 
 
@@ -256,6 +260,8 @@ def _review(
     incremental,
     incremental_dir,
     review_key,
+    syntax_cache,
+    syntax_cache_source,
 ):
     started = time.monotonic()
     expected = {
@@ -264,6 +270,10 @@ def _review(
         "incremental": {"enabled": False},
     }
     reuse = IncrementalStore(incremental_dir) if incremental else None
+    if syntax_cache:
+        from pr_review_harness.cloud_cache import cache_identity
+
+        expected["syntax_cache"] = cache_identity(syntax_cache.path.parent)
     if reuse:
         expected["incremental"] = {
             "enabled": True,
@@ -324,12 +334,18 @@ def _review(
             update_from=plan["previous"]["head_sha"] if plan.get("mode") == "incremental" else None,
         )
         artifacts = {"context": asdict(context), "memory": {"text": memory, **memory_manifest}}
+        if syntax_cache:
+            artifacts["syntax_cache_source"] = syntax_cache_source
         if reuse:
             artifacts["incremental"] = plan
         manifest = store.create(expected, artifacts) if store else {**expected, "run_id": run_id}
     session = ReviewSession()
     checks = CheckRunner(
-        snapshot, run_tests=run_tests, execution=execution, reuse=reuse, run_id=run_id
+        snapshot,
+        run_tests=run_tests,
+        execution=execution,
+        reuse=syntax_cache or reuse,
+        run_id=run_id,
     )
     backend = ReceiptStateBackend()
     facts = ReviewFacts(session, checks, policy, store, backend=backend)
@@ -432,6 +448,11 @@ def _review(
             "review_control": scope.decisions,
             "tool_routing": routing_manifest(session.trace),
             "incremental": {**plan, "check_cache": cache_manifest(session.evidence)},
+            "syntax_cache": {
+                "enabled": syntax_cache is not None,
+                **cache_manifest(session.evidence),
+                "source": artifacts.get("syntax_cache_source"),
+            },
             "submission": submission.manifest(),
             "working_context": manager.working.manifest(),
             "context_assembly": manager.manifest(),
@@ -517,6 +538,11 @@ def _review(
         "review_control": scope.decisions,
         "tool_routing": routing_manifest(session.trace),
         "incremental": {**plan, "check_cache": cache_manifest(session.evidence)},
+        "syntax_cache": {
+            "enabled": syntax_cache is not None,
+            **cache_manifest(session.evidence),
+            "source": artifacts.get("syntax_cache_source"),
+        },
         "submission": submission.manifest(),
         "messages": [m.model_dump(mode="json") for m in messages],
         "persistence": str(store.path) if store else None,

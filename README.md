@@ -28,7 +28,7 @@
 
 新增[工具路由设计与云端验收](docs/TOOL_ROUTING.md)：真实预览已使用仓库文件列表，两个技能与跨次人工规则正常加载；本机完整测试 216 项通过。该演示验证接入行为，尚无成本或质量改善结论。
 
-新增[增量审查设计与学习路线](docs/INCREMENTAL_REVIEW.md)：`review` / `github-review` 添加 `--incremental` 可使用本机持久基线与语法缓存；模型结论和单元测试在新运行中重新产生，云端跨 job 共享尚未接入。
+新增[增量审查设计与学习路线](docs/INCREMENTAL_REVIEW.md)：`review` / `github-review` 添加 `--incremental` 可使用本机持久基线与语法缓存；模型结论和单元测试在新运行中重新产生。[云端语法缓存](docs/CLOUD_SYNTAX_CACHE.md)使用独立可信 JSON artifact，共享编译结果，支持与 checkpoint 同时开启；云端没有共享调度基线。
 
 需要 Python 3.11+、Git、uv。克隆后在项目目录执行：
 
@@ -187,6 +187,7 @@ uv run pr-harness memory feedback --repo /你的/仓库 \
 - [真实云端预览与 Draft 事件验收](docs/CLOUD_ACCEPTANCE.md)
 - [跨次云端人工反馈记忆与维护步骤](docs/CLOUD_MEMORY.md)
 - [云端状态归档、来源校验、恢复与真实验收](docs/CLOUD_RECOVERY.md)
+- [云端语法缓存、来源与失效条件](docs/CLOUD_SYNTAX_CACHE.md)
 - [审查过程中按文件召回反馈、预算与恢复](docs/DYNAMIC_MEMORY.md)
 - [PR 更新后的增量调度、检查缓存与源码学习](docs/INCREMENTAL_REVIEW.md)
 - [提交可靠性与落地第一阶段记录](docs/LANDING_V1.md)

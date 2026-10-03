@@ -61,6 +61,7 @@ jobs:
           HARNESS_CI_PUBLISH: ${{ vars.HARNESS_PUBLISH || 'false' }}
           HARNESS_CI_MEMORY: ${{ vars.HARNESS_MEMORY_ENABLED || 'false' }}
           HARNESS_CI_CHECKPOINT: ${{ vars.HARNESS_CHECKPOINT_ENABLED || 'false' }}
+          HARNESS_CI_SYNTAX_CACHE: ${{ vars.HARNESS_SYNTAX_CACHE_ENABLED || 'false' }}
           HARNESS_CI_RESUME_RUN: ${{ inputs.resume_run_id || '' }}
           HARNESS_CI_RESUME_ATTEMPT: ${{ inputs.resume_attempt || '1' }}
           HARNESS_CI_PAUSE: ${{ inputs.pause_after_review || false }}
@@ -70,6 +71,7 @@ jobs:
           if [ "$HARNESS_CI_PUBLISH" = 'true' ]; then args+=(--send); fi
           if [ "$HARNESS_CI_MEMORY" = 'true' ]; then args+=(--github-memory); fi
           if [ "$HARNESS_CI_CHECKPOINT" = 'true' ]; then args+=(--cloud-checkpoint); fi
+          if [ "$HARNESS_CI_SYNTAX_CACHE" = 'true' ]; then args+=(--cloud-syntax-cache); fi
           if [ -n "$HARNESS_CI_RESUME_RUN" ]; then
             args+=(--resume-run-id "$HARNESS_CI_RESUME_RUN" --resume-attempt "$HARNESS_CI_RESUME_ATTEMPT")
           fi
@@ -88,6 +90,14 @@ jobs:
         with:
           name: harness-state-${{ github.run_id }}-${{ github.run_attempt }}
           path: outputs/state/checkpoint.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Save pure compilation cache
+        if: always() && vars.HARNESS_SYNTAX_CACHE_ENABLED == 'true' && hashFiles('outputs/cache/syntax-cache.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: harness-syntax-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/cache/syntax-cache.json
           if-no-files-found: error
           retention-days: 7
       - name: Save review and diagnostics

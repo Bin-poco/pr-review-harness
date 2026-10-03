@@ -24,6 +24,7 @@
 | `HARNESS_PUBLISH` | `false` | 仅保存预览，不发布审查评论 |
 | `HARNESS_MEMORY_ENABLED` | 默认 `false` | 完成[版本化反馈配置](CLOUD_MEMORY.md)后开启 |
 | `HARNESS_CHECKPOINT_ENABLED` | 默认 `false` | 开启[状态保存与来源恢复](CLOUD_RECOVERY.md)，仅预览模式 |
+| `HARNESS_SYNTAX_CACHE_ENABLED` | 默认 `false` | 开启[跨 job 纯编译缓存](CLOUD_SYNTAX_CACHE.md)，可与 checkpoint 同时开启 |
 | `HARNESS_MODEL` | `deepseek-flash`（可省略） | 已联调的默认模型 ID |
 | `HARNESS_BASE_URL` | `https://api.deepseek.com`（可省略） | 默认官方接口 |
 
@@ -58,6 +59,6 @@ uv run python scripts/install_workflow.py \
 
 ## 5. 当前运行边界
 
-云端默认只读取固定代码并做语法检查，不执行 PR 测试或安装脚本。每个 hosted job 使用独立环境，新版工作流可从业务仓库默认分支导入[版本化人工反馈](CLOUD_MEMORY.md)，每个 job 使用独立 SQLite；开启 checkpoint 后可从可信归档恢复同一审查，必须新建运行并指定来源。预览之外的云端恢复、跨 job 检查缓存与硬取消后的状态保留仍有限制，见[云端恢复](CLOUD_RECOVERY.md)。手动 Docker 测试、容器限制和完整部署说明见 [执行与自动审查](EXECUTION_AND_AUTOMATION.md)。
+云端默认只读取固定代码并做语法检查，不执行 PR 测试或安装脚本。每个 hosted job 使用独立环境，新版工作流可从业务仓库默认分支导入[版本化人工反馈](CLOUD_MEMORY.md)，每个 job 使用独立 SQLite；开启 checkpoint 后可从可信归档恢复同一审查，必须新建运行并指定来源。[跨 job 语法缓存](CLOUD_SYNTAX_CACHE.md)采用独立的可信 JSON artifact；云端增量调度基线未共享。预览之外的恢复与硬取消后的状态保留仍有限制，见[云端恢复](CLOUD_RECOVERY.md)。手动 Docker 测试、容器限制和完整部署说明见 [执行与自动审查](EXECUTION_AND_AUTOMATION.md)。
 
 文档中标记“本机”的 `outputs/...` 是历史验收路径，未上传到公开仓库。公开评测的 `FREEZE.json` 记录旧实验输入；当前源码变化后校验失败属于预期，后续实验需建立新的封存记录。

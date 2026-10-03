@@ -50,6 +50,14 @@ except subprocess.TimeoutExpired:
 """
 
 
+def syntax_compiler_identity() -> dict:
+    return {
+        "python": sys.version,
+        "optimization": sys.flags.optimize,
+        "implementation": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    }
+
+
 class CheckRunner:
     """Expose syntax checks and explicitly configured unittest execution."""
 
@@ -71,11 +79,7 @@ class CheckRunner:
         self.timeout = self.execution.timeout
         self.reuse = reuse
         self.run_id = run_id
-        self.syntax_identity = {
-            "python": sys.version,
-            "optimization": sys.flags.optimize,
-            "implementation": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        }
+        self.syntax_identity = syntax_compiler_identity()
         self.cache: dict[tuple[str, str], Evidence] = {}
 
     def run(self, kind: str, path: str) -> Evidence:
@@ -112,15 +116,14 @@ class CheckRunner:
         except (ValueError, FileNotFoundError) as exc:
             return CheckRun(version, sha, "unavailable", None, str(exc))
         if kind == "syntax":
-            key = digest(
-                {
-                    "kind": kind,
-                    "repo_id": self.snapshot.repo_id,
-                    "path": path,
-                    "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
-                    "compiler": self.syntax_identity,
-                }
-            )
+            inputs = {
+                "kind": kind,
+                "repo_id": self.snapshot.repo_id,
+                "path": path,
+                "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+                "compiler": self.syntax_identity,
+            }
+            key = digest(inputs)
             saved = self.reuse.get_check(key) if self.reuse else None
             if saved:
                 return CheckRun(
@@ -134,6 +137,11 @@ class CheckRunner:
                         "key": key,
                         "origin_run_id": saved["run_id"],
                         "origin_sha": saved["sha"],
+                        **(
+                            {"origin_artifact": saved["origin_artifact"]}
+                            if "origin_artifact" in saved
+                            else {}
+                        ),
                     },
                 )
             try:
@@ -150,6 +158,7 @@ class CheckRunner:
                         "output": output,
                         "run_id": self.run_id,
                         "sha": sha,
+                        "inputs": inputs,
                     },
                 )
             return CheckRun(
