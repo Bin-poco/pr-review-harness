@@ -107,6 +107,23 @@ uv run pytest tests/test_incremental.py -q
 
 **练习**：给 `z_module.py` 追加提交，对照两轮报告中的 `updated_paths`、上下文顺序、`head.sha` 与 `cache.origin_sha`。再修复 `pricing.py`，解释为何旧 finding 不再出现。最后撤销一条规则，观察调度回退原因。
 
+## 2026-10-03 验收
+
+代码版本：[5073307](https://github.com/Bin-poco/pr-review-harness/commit/5073307e90a44b0a724e132fbdc0b352788945d2)。本机全套测试 **240 项通过，92.21 秒**，其中增量风险测试 24 项；Docker 测试开启。源码、测试与脚本的 Ruff 检查和改动文件格式检查通过。
+
+使用 DeepSeek 官方 `deepseek-flash`、关闭思考模式，在本机连续审查 [PharosRAG PR #5](https://github.com/Bin-poco/PharosRAG/pull/5)。两次固定相同 head `80eb69da95f03d3e84a2b3905b887180269110ed`，分别创建新的 run，复用同一增量目录和人工反馈数据库：
+
+| 运行 | 调度 | 语法缓存命中 / 未命中 | 主审查意见 | 独立核验 |
+| --- | --- | --- | --- | --- |
+| `incremental-pharos-01` | 首次完整调度 | 0 / 1 | 第 6 行空输入除零，1 条 P2 | 支持 |
+| `incremental-pharos-02` | 相同快照，重新审查 | 1 / 0 | 同一位置重新生成意见，finding ID 不同 | 支持 |
+
+两轮分别有 7 次模型尝试、10 次工具尝试（包含核验），均加载同一条维护者确认规则。演示文件在 merge base 不存在，因此 base 检查为 unavailable，只有 head 的纯语法结果可缓存。没有发布 GitHub 评论。
+
+本次真实联调验证了相同快照的缓存复用和新模型审查；追加提交、修复、force push、配置失效等行为由受控 Git 测试覆盖。真实案例没有改变 PR head，也没有进行模型质量评测。缓存命中不意味着减少了模型调用或 token。
+
+可分享的版本、身份、工具轨迹与用量摘要保存在[验收记录](validation/incremental-20261003.json)。本机完整报告位于 `outputs/incremental/pharos-01/` 和 `outputs/incremental/pharos-02/`，由 Git 忽略。
+
 ## 云端范围
 
 默认 Actions 工作流尚未开启此选项，也没有在独立托管 runner 之间共享基线/缓存。当前验收覆盖持续使用同一本机目录的多次运行。跨 job 复用需要额外设计可信生产者身份、版本校验、大小限制与保留策略；此前已验收的跨 job 人工记忆读取是另一条独立能力。

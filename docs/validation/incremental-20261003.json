@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-03T03:01:02.861742+00:00",
+  "producer_commit": "5073307e90a44b0a724e132fbdc0b352788945d2",
+  "implementation_sha256": "e9c7c4e4312a64be9180943c04d19dc5969819d53566a20abb7ab79bea845b0a",
+  "validation_scope": "local persistent state; synthetic Git updates and two live reviews of one unchanged public PR",
+  "engineering": {
+    "command": "HARNESS_TEST_DOCKER=1 uv run pytest -q",
+    "passed": 240,
+    "elapsed_seconds": 92.21,
+    "incremental_tests": 24,
+    "ruff_check": "passed",
+    "changed_files_format": "passed"
+  },
+  "pr": {
+    "url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+    "repository_id": 1367008779,
+    "number": 5,
+    "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "merge_base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed"
+  },
+  "live_runs": [
+    {
+      "run_id": "incremental-pharos-01",
+      "mode": "full",
+      "reason": "no_completed_baseline",
+      "configuration_sha256": "73cc7a35595f580a02087c70185406c501d7e67abe3ad049bf266f38d737513b",
+      "check_cache": {
+        "eligible_kind": "syntax",
+        "hits": 0,
+        "misses": 1,
+        "unittest_reused": false,
+        "scope": "evidence in this review; resumed receipts retain original cache provenance"
+      },
+      "findings": [
+        {
+          "id": "finding-da204b985cc906da",
+          "path": "examples/harness_auto_preview.py",
+          "line": 6,
+          "severity": "P2"
+        }
+      ],
+      "verification_status": "completed",
+      "verdicts": [
+        "supported"
+      ],
+      "model_identity": {
+        "class": "langchain_openai.chat_models.base.ChatOpenAI",
+        "type": "openai-chat",
+        "model_name": "deepseek-flash",
+        "model": "deepseek-flash",
+        "openai_api_base": "https://api.deepseek.com",
+        "temperature": 0.0,
+        "max_tokens": 4096,
+        "max_retries": 1,
+        "extra_body": {
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "model_kwargs": {
+          "parallel_tool_calls": false
+        }
+      },
+      "budget_usage": {
+        "model_attempts": 7,
+        "tool_attempts": 10,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 27037,
+          "output_tokens": 1190,
+          "total_tokens": 28227
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "memory_record_uids": [
+        "e2ec47adf4d64cd4b5239218a593e45a"
+      ],
+      "tools": [
+        "read_file",
+        "read_file",
+        "read_code",
+        "search_code",
+        "run_check",
+        "submit_review"
+      ],
+      "report_sha256": "a755aa2a6c39b9595a91286c073c73155b054002f5836533038e0fa51e673005"
+    },
+    {
+      "run_id": "incremental-pharos-02",
+      "mode": "unchanged",
+      "reason": "same_snapshot_fresh_model",
+      "configuration_sha256": "73cc7a35595f580a02087c70185406c501d7e67abe3ad049bf266f38d737513b",
+      "check_cache": {
+        "eligible_kind": "syntax",
+        "hits": 1,
+        "misses": 0,
+        "unittest_reused": false,
+        "scope": "evidence in this review; resumed receipts retain original cache provenance"
+      },
+      "findings": [
+        {
+          "id": "finding-7d553df6878f9957",
+          "path": "examples/harness_auto_preview.py",
+          "line": 6,
+          "severity": "P2"
+        }
+      ],
+      "verification_status": "completed",
+      "verdicts": [
+        "supported"
+      ],
+      "model_identity": {
+        "class": "langchain_openai.chat_models.base.ChatOpenAI",
+        "type": "openai-chat",
+        "model_name": "deepseek-flash",
+        "model": "deepseek-flash",
+        "openai_api_base": "https://api.deepseek.com",
+        "temperature": 0.0,
+        "max_tokens": 4096,
+        "max_retries": 1,
+        "extra_body": {
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "model_kwargs": {
+          "parallel_tool_calls": false
+        }
+      },
+      "budget_usage": {
+        "model_attempts": 7,
+        "tool_attempts": 10,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 27154,
+          "output_tokens": 1225,
+          "total_tokens": 28379
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "memory_record_uids": [
+        "e2ec47adf4d64cd4b5239218a593e45a"
+      ],
+      "tools": [
+        "read_file",
+        "read_file",
+        "read_code",
+        "search_code",
+        "run_check",
+        "submit_review"
+      ],
+      "report_sha256": "fa6c70ba6cf192072634e924d7e5a13189be270ee3a85811f8d5eae23a0bab8a"
+    }
+  ],
+  "publication_performed": false,
+  "cross_job_cache_enabled": false,
+  "credential_scan": "no configured key or known key pattern found in local report artifacts",
+  "limits": [
+    "PR head unchanged in live acceptance; update/fix behavior covered by controlled Git graph tests",
+    "one artificial defect; no model accuracy, latency or cost improvement claim",
+    "syntax cache only; model findings and cross-run unittest results not reused",
+    "baseline records main-stage completion, not maintainer approval"
+  ]
+}
