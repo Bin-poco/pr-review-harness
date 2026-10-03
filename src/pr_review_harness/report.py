@@ -162,7 +162,7 @@ def render_markdown(report: dict) -> str:
             f"- 上下文策略：{context.get('strategy', 'unspecified')}。",
             f"- 初始上下文：{context['used_chars']} / {context['max_chars']} 字符。",
             f"- 补充代码读取：{context['additional_read_chars']} 字符。",
-            f"- 已注入仓库记忆：{context['memory_chars']} 字符。",
+            f"- 启动时仓库记忆：{context['memory_chars']} 字符。",
             f"- 耗时：{report['elapsed_seconds']} 秒。",
             "- 审查阶段可见消息 Token："
             f"{report['usage'] if report['usage']['reported'] else '模型未提供'}。",
@@ -179,6 +179,13 @@ def render_markdown(report: dict) -> str:
         ids = ", ".join(str(record["id"]) for record in memory["records"]) or "无"
         lines.append(f"- 冻结召回记忆 ID：{ids}；召回预算省略 {memory['omitted_count']} 条。")
         lines.append(f"- 记忆快照摘要：`{memory['sha256']}`。")
+    pool = memory.get("candidate_pool")
+    if pool is not None:
+        lines.append(
+            f"- 冻结候选规则：{len(pool['records'])} 条；容量限制省略 {pool['omitted_count']} 条。"
+            "运行中根据实际代码读取/搜索命中召回，逐请求记录展示与预算省略。"
+        )
+        lines.append(f"- 候选规则版本摘要：`{pool['sha256']}`。")
     if report.get("run_id"):
         lines.append(f"- 运行 ID：`{report['run_id']}`；恢复：{report.get('resumed', False)}。")
     submission = report.get("submission")

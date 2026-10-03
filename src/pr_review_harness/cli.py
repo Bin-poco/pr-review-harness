@@ -506,8 +506,8 @@ def _dispatch(arguments) -> int:
         model = _live_model(arguments) if arguments.live else DemoChatModel()
         mode = "live" if arguments.live else "scripted-demo"
         policy = _policy(arguments, model)
-        memory = MemoryStore(arguments.memory_db).recall_snapshot(
-            snapshot.repo_id, [item.path for item in snapshot.changed_files]
+        memory = MemoryStore(arguments.memory_db).freeze_snapshot(
+            snapshot.repo_id, [item.path for item in snapshot.changed_files], policy.memory_chars
         )
         report = review(
             snapshot,
@@ -629,9 +629,11 @@ def _dispatch(arguments) -> int:
             snapshot, source, configured_client(), store, path=arguments.github_memory_path
         )
         atomic_json(arguments.out / "memory-source.json", receipt)
-    memory = store.recall_snapshot(snapshot.repo_id, [item.path for item in snapshot.changed_files])
     model = _live_model(arguments)
     policy = _policy(arguments, model)
+    memory = store.freeze_snapshot(
+        snapshot.repo_id, [item.path for item in snapshot.changed_files], policy.memory_chars
+    )
     report = review(
         snapshot,
         model,

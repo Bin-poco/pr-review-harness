@@ -53,7 +53,7 @@ def run_benchmark(cases_path, model, policy, output, *, variants=None, scripted=
                     "Each memory_db case must declare memory_is_prior_feedback=true; "
                     "curate historical feedback separately from evaluation labels"
                 )
-            memory = MemoryStore(resolve(case["memory_db"])).recall_snapshot(
+            memory = MemoryStore(resolve(case["memory_db"])).freeze_snapshot(
                 snapshot.repo_id, [f.path for f in snapshot.changed_files], policy.memory_chars
             )
         for variant in variants:
@@ -62,11 +62,7 @@ def run_benchmark(cases_path, model, policy, output, *, variants=None, scripted=
             target = output / batch_id / f"case-{len(rows):04d}-{variant}"
             row = {
                 "case_id": case["id"],
-                **{
-                    key: case[key]
-                    for key in ("root_cause_group", "case_role")
-                    if key in case
-                },
+                **{key: case[key] for key in ("root_cause_group", "case_role") if key in case},
                 "variant": variant,
                 "repo_id": snapshot.repo_id,
                 "head_sha": snapshot.head_sha,

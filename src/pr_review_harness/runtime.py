@@ -5,6 +5,7 @@ import json
 import re
 import time
 from contextlib import ExitStack
+from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 from posixpath import normpath
@@ -33,6 +34,7 @@ from pr_review_harness.execution import ExecutionPolicy
 from pr_review_harness.incremental import IncrementalStore, cache_manifest, configuration_digest
 from pr_review_harness.incremental import review_key as incremental_key
 from pr_review_harness.memory import MemoryRecall
+from pr_review_harness.memory_recall import validate_pool
 from pr_review_harness.models import Finding, ReviewSession
 from pr_review_harness.persistence import ModelAccounting, RunStore, atomic_json, identity
 from pr_review_harness.review_state import ExecutionUnknown, ReceiptStateBackend, ReviewFacts
@@ -272,6 +274,9 @@ def _review(
         manifest, artifacts = store.validate(expected)
         memory = artifacts["memory"]["text"]
         memory_manifest = {k: v for k, v in artifacts["memory"].items() if k != "text"}
+        memory_pool = memory_manifest.get("candidate_pool")
+        if memory_pool is not None:
+            validate_pool(memory_pool, snapshot.repo_id)
         plan = artifacts.get("incremental", {"enabled": False})
         from pr_review_harness.models import ContextItem, ContextPack
 
@@ -286,7 +291,7 @@ def _review(
             store.reset_unknown_checks()
     else:
         if isinstance(memory, MemoryRecall):
-            memory_manifest = memory.manifest
+            memory_manifest = deepcopy(memory.manifest)
             if memory_manifest["repo_id"] != snapshot.repo_id:
                 raise ValueError("Memory snapshot belongs to a different repository")
             memory = memory.text
@@ -297,6 +302,9 @@ def _review(
                 "Memory snapshot exceeds BudgetPolicy.memory_chars; recall within limit"
             )
         memory_manifest = {**memory_manifest, "sha256": hashlib.sha256(memory.encode()).hexdigest()}
+        memory_pool = memory_manifest.get("candidate_pool")
+        if memory_pool is not None:
+            validate_pool(memory_pool, snapshot.repo_id)
         frozen_memory = {"text": memory, **memory_manifest}
         plan = (
             reuse.plan(
@@ -325,7 +333,9 @@ def _review(
     )
     backend = ReceiptStateBackend()
     facts = ReviewFacts(session, checks, policy, store, backend=backend)
-    manager = ContextManager(snapshot, session, context, memory, model, policy, backend)
+    manager = ContextManager(
+        snapshot, session, context, memory, model, policy, backend, memory_pool=memory_pool
+    )
     manager.working.persistent = store is not None
     accounting = ModelAccounting(
         policy, store, model, prior=store.budget_usage() if resume and store else None
@@ -377,7 +387,14 @@ def _review(
         "messages": [{"role": "user", "content": context.text}],
         "files": {
             "/memories/repository.md": create_file_data(
-                memory or "No confirmed repository feedback is available."
+                (
+                    "Startup feedback selection only. Additional scoped records from the same "
+                    "frozen pool are injected after repository code reads/search matches. "
+                    "This file does not contain the candidate pool.\n\n"
+                    if memory_pool is not None
+                    else ""
+                )
+                + (memory or "No confirmed repository feedback is available.")
             ),
             **skill_files(),
         },

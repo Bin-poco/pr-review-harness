@@ -383,6 +383,27 @@ class MemoryStore:
     def recall(self, repo_id: str, paths: list[str], max_chars: int = 4_000) -> str:
         return self.recall_snapshot(repo_id, paths, max_chars).text
 
+    def freeze_snapshot(
+        self, repo_id: str, paths: list[str], max_chars: int = 4_000
+    ) -> MemoryRecall:
+        """Freeze bounded active repository candidates for runtime path-based recall.
+
+        Expiry and lifecycle are evaluated once. Future reads select from this
+        pool, including on resume; later database changes affect only new runs.
+        """
+        from pr_review_harness.memory_recall import freeze_feedback
+
+        repo_id = _text(repo_id, "repo_id", MAX_REPO_CHARS)
+        if type(max_chars) is not int or max_chars < 0:
+            raise ValueError("max_chars must be a non-negative integer")
+        if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
+            raise ValueError("paths must be a list of strings")
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN")
+            return freeze_feedback(
+                connection, repo_id, paths, max_chars, datetime.now(UTC).isoformat()
+            )
+
     def export_bundle(self, repo_id: str) -> dict:
         """Export all feedback history with IDs that survive independent databases."""
         from pr_review_harness.memory_bundle import bundle_from_records

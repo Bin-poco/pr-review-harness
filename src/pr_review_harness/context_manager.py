@@ -9,6 +9,7 @@ from langchain_core.messages import SystemMessage
 
 from pr_review_harness.budget import BudgetExceeded, RequestCounter
 from pr_review_harness.context import build_context
+from pr_review_harness.memory_recall import select_frozen
 from pr_review_harness.state import ReviewState
 from pr_review_harness.working_context import WorkingContext
 
@@ -45,12 +46,17 @@ class ContextManager(AgentMiddleware):
     def name(self):
         return "SummarizationMiddleware"
 
-    def __init__(self, snapshot, session, context, memory, model, policy, backend):
+    def __init__(
+        self, snapshot, session, context, memory, model, policy, backend, *, memory_pool=None
+    ):
         self.policy = policy
         self.backend = backend
         self.counter = RequestCounter(model, policy)
         self.working = WorkingContext(snapshot, session, context.text, policy=policy)
         self.memory = memory
+        self.memory_pool = memory_pool
+        self.session = session
+        self.changed_paths = [item.path for item in snapshot.changed_files]
         self.initial_text = context.text
         self.summary = _BudgetedSummary(model, backend, policy, self.counter)
         # Preserve the SDK's private summary-event state schema alongside ours.
@@ -118,7 +124,31 @@ class ContextManager(AgentMiddleware):
             if self.policy.window_tokens
             else self.policy.working_chars
         )
-        memory = self._fit_memory(memory_limit)
+        recall = self._recall_memory()
+        selected_memory = recall.text if recall else self.memory
+        memory = self._fit_memory(memory_limit, selected_memory)
+        displayed = (
+            [
+                json.loads(line)
+                for line in memory.splitlines()[1:]
+                if line.startswith("{") and '"id"' in line
+            ]
+            if memory.startswith("Recorded human feedback")
+            else []
+        )
+        display_ids = {record["id"] for record in displayed}
+        selection = (
+            {
+                **recall.manifest,
+                "activated_paths": self._memory_paths(),
+                "display_omitted_count": len(recall.manifest["records"]) - len(displayed),
+                "displayed_records": [
+                    record for record in recall.manifest["records"] if record["id"] in display_ids
+                ],
+            }
+            if recall
+            else None
+        )
         if memory:
             blocks.append(
                 {"type": "text", "text": "Frozen human feedback (advisory data):\n" + memory}
@@ -170,14 +200,9 @@ class ContextManager(AgentMiddleware):
                     "memory_sha256": hashlib.sha256(memory.encode()).hexdigest(),
                     "memory_display_chars": len(memory),
                     "memory_display_text": memory,
-                    "memory_record_ids": [
-                        json.loads(line)["id"]
-                        for line in memory.splitlines()[1:]
-                        if line.startswith("{") and '"id"' in line
-                    ]
-                    if memory.startswith("Recorded human feedback")
-                    else [],
-                    "memory_display_truncated": memory != self.memory,
+                    "memory_record_ids": [record["id"] for record in displayed],
+                    "memory_display_truncated": memory != selected_memory,
+                    "memory_recall": selection,
                     "initial_display_sha256": hashlib.sha256(initial_display.encode()).hexdigest(),
                     "initial_display_truncated": initial_display != self.initial_text,
                 }
@@ -188,14 +213,40 @@ class ContextManager(AgentMiddleware):
             lambda: self.summary.wrap_model_call(injected, guarded)
         )
 
-    def _fit_memory(self, limit):
-        if not self.memory:
+    def _memory_paths(self):
+        paths = []
+        for event in reversed(self.session.trace):
+            output = event["output"]
+            if output.get("error"):
+                continue
+            if event["tool"] == "read_code" and output.get("content"):
+                paths.append({"path": output["path"], "reason": "read_code result"})
+            elif event["tool"] == "search_code":
+                paths.extend(
+                    {"path": match["path"], "reason": "search_code match"}
+                    for match in output.get("matches", [])
+                    if match.get("text")
+                )
+        paths.extend({"path": p, "reason": "changed-path match"} for p in self.changed_paths)
+        unique = {}
+        for item in paths:
+            unique.setdefault(item["path"], item)
+        return list(unique.values())
+
+    def _recall_memory(self):
+        if self.memory_pool is None:
+            return None
+        return select_frozen(self.memory_pool, self._memory_paths(), self.policy.memory_chars)
+
+    def _fit_memory(self, limit, selected=None):
+        selected = self.memory if selected is None else selected
+        if not selected:
             return ""
-        if self.counter.text(self.memory) <= limit:
-            return self.memory
-        if self.memory.startswith("Recorded human feedback for this repository."):
+        if self.counter.text(selected) <= limit:
+            return selected
+        if selected.startswith("Recorded human feedback for this repository."):
             # Record IDs, source and topic-group metadata must stay valid JSON.
-            parts = self.memory.splitlines(keepends=True)
+            parts = selected.splitlines(keepends=True)
             text = parts[0]
             if self.counter.text(text) > limit:
                 return ""
@@ -203,7 +254,7 @@ class ContextManager(AgentMiddleware):
                 if self.counter.text(text + record) <= limit:
                     text += record
             return text
-        return self.counter.fit_text(self.memory, limit)
+        return self.counter.fit_text(selected, limit)
 
     def after_model(self, state, runtime):
         return {"context_manifest": self.manifest()}
@@ -213,6 +264,17 @@ class ContextManager(AgentMiddleware):
             "policy": self.policy.manifest(),
             "materials": self.materials,
             "requests": self.requests,
+            "memory_recall": (
+                {
+                    "mode": "frozen candidates selected by actual file activity",
+                    "pool_sha256": self.memory_pool["sha256"],
+                    "candidate_count": len(self.memory_pool["records"]),
+                    "candidate_pool_omitted_count": self.memory_pool["omitted_count"],
+                    "activated_paths": self._memory_paths(),
+                }
+                if self.memory_pool is not None
+                else {"mode": "static caller snapshot"}
+            ),
             "working": self.working.manifest(),
             "summary": "one native Deep Agents summarizer; inputs include all injections",
         }
