@@ -1,6 +1,6 @@
 # 上下文与记忆统一设计及实现
 
-日期：2026-10-02。原有 86 项测试为改造前基线；本轮已落地 A–D，E 已有可运行的四组实验入口。工程验收见 [VALIDATION.md](VALIDATION.md)。真实 PR 封存集和人工质量评测仍待完成。
+初版日期：2026-10-02；2026-10-03 更新运行中按文件召回。原有 86 项测试为统一改造前基线；已落地 A–D，E 已有可运行的四组实验入口。工程验收见 [VALIDATION.md](VALIDATION.md)。已有真实 PR 开发/封存数据与首轮模型运行；独立人工质量复核和重复实验仍待完成。
 
 本项目依赖 Deep Agents **0.7.21**、LangGraph SQLite checkpointer **3.1.1**；行为以 `uv.lock` 安装源码为准。**Deep Agents/LangGraph 是唯一运行主线，SQLite 保存本地持久数据。** Letta、Mem0、OpenHands 只提供机制参考，没有作为额外运行框架接入。
 
@@ -88,7 +88,7 @@ ChatOpenAI 适配器估计消息 token，工具 schema 另行序列化计数，�
 | RunManifest | repo_id、base/merge-base/head SHA、模型配置、预算、策略、技能/实现摘要和执行环境；文件与图 state |
 | ContextManifest | 内容来源/路径/选入理由、SHA/材料 hash、截断、省略、每次完整请求占用和实际记忆展示；图 state 与报告 |
 | ReviewState | 原始消息、StateBackend 文件、事实状态、提交修复状态、run identity、冻结记忆与装配记录；checkpoint |
-| MemorySnapshot | 召回原文、记录 ID、source/scope/类型、原因、hash、主题组和省略数；不可变 artifacts 与 checkpoint |
+| MemorySnapshot | 启动召回原文及有界冻结候选版本；记录 ID、UID、source/scope/类型、hash 与省略数；不可变 artifacts 与 checkpoint |
 | FeedbackRecord | source_run_id、finding_id、rule_key、反馈、范围、有效期、状态、替换关系；MemoryStore |
 | ExecutionReceipt | 工具/模型尝试身份、stage、started/completed 状态、结果或未知用量；独立 SQLite |
 
@@ -118,14 +118,16 @@ CLI 默认保存 `.pr-harness/runs/<run_id>/`；Python API 通过 `runs_dir` 启
 
 ```text
 审查 finding → 维护者明确反馈 → feedback 命令关联 run/finding
-→ 下一 PR 按仓库/路径/期限召回 → 冻结快照 → 模型核对当前代码
+→ 下一 PR 冻结本仓库有效候选 → 按改动路径/实际文件活动召回 → 模型核对当前代码
 ```
 
 `accepted` 保存明确规则/经验；`dismissed` 只保存曾被驳回的建议，不能推导业务许可。Agent 无数据库写工具，也不能编辑/删除 `/memories` 下的冻结反馈。`revise` 原子新增替代记录并保留替换链；`revoke` 保留历史但停止未来召回。旧数据库增列迁移，历史不删除。
 
 召回按 active、未过期、仓库与路径过滤；范围相关记录先于全仓库，同组按时间排序。排序不裁决正确性。同 `rule_key` 有多条适用记录时返回主题组，标为“同主题未决，非已证明矛盾”；不带 key 的记录标记未做主题检测。没有自然语言矛盾识别或自动冲突解决。
 
-修订/撤销影响后续 run；恢复仍使用创建时冻结快照。报告区分当初召回的记录与每次实际进入模型输入的记录。模型分析不会自动变成长期已确认规则；语义检索、自动抽取和自进化暂未加入。
+CLI 与 benchmark 使用 `freeze_snapshot`：候选容量最多 1,000 条、记录 JSON 最多 1 MB；运行中按成功代码读取及搜索实际命中重新匹配，无需重读数据库。每次请求仍只注入记忆/完整请求预算内的记录。`recall_snapshot` 与字符串 API 保持静态行为。规则来源与容量/请求预算省略分开追踪，详见[按文件召回](DYNAMIC_MEMORY.md)。
+
+修订/撤销影响后续 run；恢复仍使用创建时冻结候选，从持久工具轨迹重建激活路径。报告区分启动时召回、请求内选中和实际展示的记录。模型分析不会自动变成长期已确认规则；语义检索、自动抽取和自进化暂未加入。
 
 ## A–E 落地状态
 
@@ -139,4 +141,4 @@ CLI 默认保存 `.pr-harness/runs/<run_id>/`；Python API 通过 `runs_dir` 启
 
 `benchmark` 固定 SHA、模型、工具和预算，变更工作状态/记忆开关，保存失败、用量、位置候选指标和空白人工判断。历史反馈需要显式声明，但声明本身无法证明无泄漏，仍需人工审查数据来源。脚本模型只验收链路，不能用于模型质量结论。
 
-在 Python PR Review 范围内，A–D 构成上下文与人工反馈记忆闭环。真实长 PR 的质量、成本、记忆迁移收益需要 E 的模型运行与人工标注。手动 GitHub 链路已完成联调，见 [第一阶段](LANDING_V1.md)；Docker 执行与自动事件入口见[第二阶段](LANDING_V2.md)。本仓库[云端手动预览与 Draft 跳过](CLOUD_ACCEPTANCE.md)、[PharosRAG 部署及非 Draft 自动审查预览](PHAROS_CLOUD_ACCEPTANCE.md)已验收；已验收[版本化反馈的跨 job 读取](CLOUD_MEMORY.md)；云端 checkpoint 恢复与增量审查仍待完成。
+在 Python PR Review 范围内，A–D 构成上下文与人工反馈记忆闭环。真实长 PR 的质量、成本、记忆迁移收益需要 E 的模型运行与人工标注。手动 GitHub 链路已完成联调，见 [第一阶段](LANDING_V1.md)；Docker 执行与自动事件入口见[第二阶段](LANDING_V2.md)。本仓库[云端手动预览与 Draft 跳过](CLOUD_ACCEPTANCE.md)、[PharosRAG 部署及非 Draft 自动审查预览](PHAROS_CLOUD_ACCEPTANCE.md)已验收；已验收[版本化反馈的跨 job 读取](CLOUD_MEMORY.md)。[增量调度与语法缓存](INCREMENTAL_REVIEW.md)已在本机实现，云端 checkpoint 恢复与跨 job 增量状态共享仍待完成。

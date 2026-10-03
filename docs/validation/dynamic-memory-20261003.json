@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-03T03:29:41.357162+00:00",
+  "producer_commit": "bbc4d190b856ce8606a76e3459d42158ddaa6b0f",
+  "implementation_sha256": "9db8a0de126cafc3c41e69175356fa30392b4b28ed562c6a9cea696ab621b458",
+  "validation_scope": "local dynamic recall and recovery; real GitHub/DeepSeek integration with one existing applicable rule",
+  "engineering": {
+    "command": "HARNESS_TEST_DOCKER=1 uv run pytest -q",
+    "passed": 250,
+    "elapsed_seconds": 95.87,
+    "dynamic_memory_tests": 10,
+    "ruff_check": "passed",
+    "changed_files_format": "passed",
+    "covered_risks": [
+      "foreign repository, expired, revoked and superseded records excluded",
+      "failed and empty reads, file lists and virtual reads do not activate unseen rules",
+      "actual returned code and search matches activate scoped feedback",
+      "related rule versions remain frozen after revision and removal of the live DB",
+      "completed resume retains cumulative usage without new model calls",
+      "candidate count and UTF-8 byte caps with explicit omissions",
+      "character and complete token request guards preserve JSON/provenance",
+      "corrupted and foreign candidate pools rejected",
+      "candidate pool is not exposed by the virtual memory file",
+      "runtime recall survives actual native SDK history compaction",
+      "unseen rule revisions change incremental configuration while recapture time does not"
+    ]
+  },
+  "live_run": {
+    "run_id": "scoped-memory-pharos-01",
+    "model": {
+      "class": "langchain_openai.chat_models.base.ChatOpenAI",
+      "type": "openai-chat",
+      "model_name": "deepseek-flash",
+      "model": "deepseek-flash",
+      "openai_api_base": "https://api.deepseek.com",
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "max_retries": 1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "model_kwargs": {
+        "parallel_tool_calls": false
+      }
+    },
+    "pr_url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+    "repository_id": 1367008779,
+    "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+    "merge_base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "candidate_count": 1,
+    "candidate_omitted_count": 0,
+    "candidate_pool_sha256": "9b63d44676fef009058debb22e07385fa762d1410fdf573a66fc991247062df5",
+    "memory_source": {
+      "bundle_sha256": "2b060fd8ba846f13a7bb83cd5f22497d5521e80530f8d53d1d9cb2a24e18539e",
+      "origin": {
+        "kind": "github-default-branch",
+        "repository_id": 1367008779,
+        "repository": "Bin-poco/PharosRAG",
+        "branch": "main",
+        "commit_sha": "a0c71175e25bab1523a933deb7594f9b6ebf663e",
+        "path": ".harness/feedback.json",
+        "blob_sha": "35c23d0389e9aca4daaa9c4c17d571afcd00c940",
+        "file_sha256": "63c521e3576ce8ad504b3010449c3085757d944d414f53c1365230c0f4cf4122"
+      },
+      "local_changes": false
+    },
+    "memory_record_uids": [
+      "e2ec47adf4d64cd4b5239218a593e45a"
+    ],
+    "review_requests": 4,
+    "memory_record_ids_per_request": [
+      [
+        1
+      ],
+      [
+        1
+      ],
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ],
+    "memory_recall_reasons_per_request": [
+      [
+        "changed-path match"
+      ],
+      [
+        "changed-path match"
+      ],
+      [
+        "search_code match"
+      ],
+      [
+        "search_code match"
+      ]
+    ],
+    "all_requests_within_budget": true,
+    "findings": [
+      {
+        "id": "finding-af2e55e11be34b8d",
+        "path": "examples/harness_auto_preview.py",
+        "line": 6,
+        "severity": "P2"
+      }
+    ],
+    "verification_status": "completed",
+    "verdicts": [
+      "supported"
+    ],
+    "budget_usage": {
+      "model_attempts": 7,
+      "tool_attempts": 10,
+      "unknown_usage_calls": 0,
+      "known_usage": {
+        "input_tokens": 26879,
+        "output_tokens": 1178,
+        "total_tokens": 28057
+      },
+      "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+    },
+    "tools": [
+      "read_file",
+      "read_file",
+      "read_code",
+      "search_code",
+      "run_check",
+      "submit_review"
+    ],
+    "report_sha256": "3bd1b1f01eec4f2c72606f6c38ed24b81504e1ae187c887b9c9f96f47ee67666"
+  },
+  "publication_performed": false,
+  "business_workflow_updated": false,
+  "credential_scan": "no configured key found in local artifact files",
+  "limits": [
+    "new unrelated file activation validated with controlled graph tests, not this one-rule live PR",
+    "dynamic recall is for the main review stage; independent verification input unchanged",
+    "no accuracy, latency or cost improvement measurement",
+    "candidate pool capacity omissions cannot be rematched later in this run",
+    "runtime expiry/revision/revocation applies to new runs; old run input remains frozen",
+    "cloud checkpoint persistence and cross-job incremental state sharing not implemented"
+  ]
+}

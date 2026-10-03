@@ -252,7 +252,7 @@ uv run pr-harness context \
 
 ## 6. 记忆：维护者确认的经验如何进入下一次审查
 
-阅读 [memory.py](../src/pr_review_harness/memory.py) 的 `add_feedback`、`recall_snapshot`、`revise`、`revoke`。
+阅读 [memory.py](../src/pr_review_harness/memory.py) 的 `add_feedback`、`freeze_snapshot`、`recall_snapshot`、`revise`、`revoke`，以及 [memory_recall.py](../src/pr_review_harness/memory_recall.py) 的冻结候选与按路径选择。
 
 记忆保存跨运行可复用的人工反馈，例如接口允许的行为、已驳回的误报及维护者确认的约束。数据库记录来源、仓库、路径范围、有效期、run/finding 关联和状态。
 
@@ -299,7 +299,7 @@ from pr_review_harness.snapshot import Snapshot
 root = Path.cwd()
 snapshot = Snapshot.load(root / "outputs/learning/demo-01/repo", "HEAD~1", "HEAD")
 store = MemoryStore(root / "outputs/learning/memory.sqlite3")
-memory = store.recall_snapshot(snapshot.repo_id, [f.path for f in snapshot.changed_files])
+memory = store.freeze_snapshot(snapshot.repo_id, [f.path for f in snapshot.changed_files])
 report = review(snapshot, DemoChatModel(), memory=memory, run_tests=True,
                 mode="scripted-demo", runs_dir=root / "outputs/learning/runs",
                 run_id="learning-memory-01")
@@ -310,6 +310,8 @@ PY
 ```
 
 查看新报告的 `context.memory_snapshot`，再查看 `context.assembly.requests` 中的 `memory_record_ids`、`memory_display_text` 和 `memory_display_truncated`。被召回的记录还可能因完整请求预算而被缩减，因此召回记录与实际展示记录都要查看。
+
+**运行中召回练习**：阅读[按文件召回文档](DYNAMIC_MEMORY.md)，运行 `uv run pytest -q tests/test_dynamic_memory.py`。跟踪 `read_code` 或 `search_code` 命中后的 `memory_recall.activated_paths` 与 `displayed_records`，解释为什么列文件、读失败、虚拟文件读取不会激活新仓库规则。再解释数据库删除后恢复为何仍能展示旧调用方规则，为什么新规则会影响增量配置摘要。
 
 ### 6.2 修订和撤销
 
@@ -533,6 +535,7 @@ uv run --env-file .env pr-harness demo --live \
 
 - [上下文与记忆统一设计](CONTEXT_MEMORY_DESIGN.md)
 - [跨次云端人工反馈记忆](CLOUD_MEMORY.md)
+- [运行中按文件召回、预算与恢复](DYNAMIC_MEMORY.md)
 - [增量调度与语法检查缓存](INCREMENTAL_REVIEW.md)
 - [评测设计](EVALUATION.md)
 - [当前业务范围](PROJECT.md)

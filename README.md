@@ -158,6 +158,8 @@ uv run pr-harness memory revoke --repo /你的/仓库 --id 2 --reason "此约定
 
 人工驳回的建议使用 `--disposition dismissed` 保存；它只代表此建议曾被驳回，不会自动推导出允许某种业务行为。Agent 无权把自己的结论写入持久记忆，也不能编辑临时仓库反馈文件。修订和撤销保留历史，影响后续审查；当次报告区分冻结召回记录和每次模型请求实际展示的记录，保存 ID、来源、截断和内容摘要。
 
+CLI 先冻结本仓库有效反馈候选，再按 PR 改动路径与审查期间实际代码读取/搜索命中召回。候选最多 1,000 条、记录 JSON 最多 1 MB；每次只展示预算内的规则，来源与省略可追踪。恢复使用同一候选版本，详见[运行中按文件召回](docs/DYNAMIC_MEMORY.md)。
+
 可将人工反馈关联到报告中的具体 finding（`--finding-id` 从 `review.json` 复制）：
 
 ```bash
@@ -180,6 +182,7 @@ uv run pr-harness memory feedback --repo /你的/仓库 \
 - [公开仓库配置与首次云端预览](docs/GITHUB_SETUP.md)
 - [真实云端预览与 Draft 事件验收](docs/CLOUD_ACCEPTANCE.md)
 - [跨次云端人工反馈记忆与维护步骤](docs/CLOUD_MEMORY.md)
+- [审查过程中按文件召回反馈、预算与恢复](docs/DYNAMIC_MEMORY.md)
 - [PR 更新后的增量调度、检查缓存与源码学习](docs/INCREMENTAL_REVIEW.md)
 - [提交可靠性与落地第一阶段记录](docs/LANDING_V1.md)
 - [容器执行、自动审查部署与源码学习](docs/EXECUTION_AND_AUTOMATION.md)

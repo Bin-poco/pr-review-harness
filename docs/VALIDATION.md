@@ -86,3 +86,12 @@ uv run pr-harness benchmark --cases outputs/context-memory-v3/demo-cases.json \
 在业务仓库默认分支保存维护者确认的版本化反馈，单独启动两次云端 DeepSeek 审查。两轮使用不同 hosted job 与 run ID，均读取相同反馈 UID、文件摘要和固定来源 SHA；规则实际出现在 3/3 与 10/10 次主审查模型请求中。均完成审查与独立核验，保持预览，Draft PR 未合并。
 
 本机完整回归 203 项通过（含 Docker）；新增记忆专项 30 项通过。实现、生命周期与运维步骤见 [CLOUD_MEMORY.md](CLOUD_MEMORY.md)，原始结果摘要见 [cloud-memory-20261003.json](validation/cloud-memory-20261003.json)。这项验收仅证明人工反馈的跨 job 读取；云端 checkpoint 恢复和记忆质量收益尚未验证。以上历史记录保留原验收时间与结论。
+
+## 运行中按文件召回反馈（2026-10-03）
+
+- `HARNESS_TEST_DOCKER=1 uv run pytest -q`：**250 项通过，95.87 秒**；动态记忆专项 10 项。
+- 新增覆盖冻结候选的仓库/生命周期隔离、候选数量与 UTF-8 容量限制、真实读取/搜索激活、列文件和失败读取不激活、数据库删除后恢复、原生摘要后反馈重建、虚拟文件不暴露全池、完整预算与增量配置失效。
+- `uv run ruff check src tests scripts`、修改文件格式检查、`git diff --check`：通过。
+- 真实 DeepSeek 主审查与独立核验完成：PharosRAG PR #5 的确认规则展示于全部 4 次主审查请求；第 6 行 P2，核验 supported，7 次模型与 10 次工具尝试。仅生成本地报告，未更新业务云端工作流。
+
+真实案例只有一条已匹配规则，新相关文件规则的激活由工程测试验证。设计、源码顺序及输入边界见 [DYNAMIC_MEMORY.md](DYNAMIC_MEMORY.md)；原始摘要见 [dynamic-memory-20261003.json](validation/dynamic-memory-20261003.json)。没有记忆质量或成本收益结论。

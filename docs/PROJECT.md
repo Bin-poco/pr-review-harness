@@ -32,7 +32,7 @@ flowchart LR
 
 Deep Agents 提供通用运行、上下文摘要、工具结果落盘、记忆及技能加载等能力。我们实现业务输入、AST 相关上下文选择、版本对照检查、反馈筛选、独立核验和报告校验。模型与工具的循环继续依赖 LangChain/LangGraph。
 
-当前装配入口是 **ContextManager + BudgetPolicy**。MemoryStore 先按仓库/路径/期限召回人工反馈，生成冻结快照；ContextManager 将它和 ReviewState 的可验证事实注入，再交给同一个 SDK 摘要器压缩历史，最后校验完整请求。没有再叠加 Letta、Mem0 或其他运行框架。
+当前装配入口是 **ContextManager + BudgetPolicy**。MemoryStore 先冻结本仓库有效人工反馈候选；ContextManager 根据改动路径与运行中实际代码读取/搜索命中重新选择预算内的反馈，将其和 ReviewState 的可验证事实注入，再交给同一个 SDK 摘要器压缩历史，最后校验完整请求。没有再叠加 Letta、Mem0 或其他运行框架。候选版本、展示、省略和恢复流程见[按文件召回](DYNAMIC_MEMORY.md)。
 
 `IncrementalStore` 为同一 PR 保存完成基线；在祖先关系、merge base 和配置一致时，将更新路径传给现有上下文选择器。纯语法检查按源码内容与编译器复用，保留本次 SHA 和原检查来源；模型结论和跨运行单元测试重新产生。计划随 run 冻结并进入原有恢复校验。详见[增量调度与缓存](INCREMENTAL_REVIEW.md)，云端跨 job 共享待实现。
 
@@ -55,6 +55,7 @@ LangGraph SQLite checkpoint 保存消息、StateBackend 文件及 ReviewState。
 | 5：业务仓库自动预览已验收 | GitHub 手动链路、事件入口、默认预览工作流、容器执行 | Draft PR 真实发布/查重；Docker 隔离验证；云端手动预览、Draft 跳过与 PharosRAG 非 Draft 自动预览已验收 |
 | 5.1：已验收 | 版本化人工反馈的跨 job 读取 | 两次独立 hosted job 读取相同 UID/来源，并核对每次主审查请求实际展示 |
 | 5.2：已验收 | 仓库/虚拟存储工具路由 | 固定版本文件列表、原生工具说明覆盖、误用纠正及可恢复回执；本机 216 项测试与真实云端预览通过，见 [设计与验证](TOOL_ROUTING.md) |
+| 5.3：本机已实现 | 运行中按文件召回反馈 | 有界冻结候选、读取/搜索命中、预算与展示追踪、数据库删除后恢复；适用主审查，业务云端工作流仍使用其已固定源码版本 |
 | 6：本机机制已实现 | 增量调度与纯语法缓存、评测完善 | 保留完整 PR 范围；配置与版本变化回退；风险测试可重跑，跨 job 共享和效果评测待完成 |
 
 当前版本验证“审查、核验、评估机制可以运行”。默认示例的结论由预设调用器给出，不证明模型效果；模型效果评测计划见 EVALUATION.md。
