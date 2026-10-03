@@ -139,3 +139,11 @@ uv run pr-harness benchmark --cases outputs/context-memory-v3/demo-cases.json \
 - 贯穿相同 Harness run ID；主审查意见、证据、消息、完整上下文与冻结人工规则一致；后两次核验与执行回执一致（当前恢复耗时除外）。成员摘要、实际源码 checkout、全部 7 次请求的片段索引与固定代码摘要已核对；47 个日志/状态文件及内部成员凭证扫描通过。PR 保持 Draft 未合并，远程评论/审查均为 0。
 
 真实 Re-run 发现上一 attempt artifact 消失，导致首次自动恢复设计失败；据此改成**新建 Run workflow 并指定来源**，明确拒绝直接 Re-run。云端采用阶段边界的受控暂停，正在执行时的故障由离线图测试覆盖；没有硬取消恢复、自动发布、跨 job 检查缓存或质量/成本收益结论。完整设计、操作与平台发现见 [CLOUD_RECOVERY.md](CLOUD_RECOVERY.md)，长期证据见 [cloud-recovery-20261003.json](validation/cloud-recovery-20261003.json)。
+
+## 2026-10-03：跨 job 语法缓存与恢复兼容性
+
+- 源码 `06467a1a2a09fbfa8d8d9c630087431153d56fd3`，完整回归 **343 项通过，150.19 秒，包含 Docker**；新增缓存专项 32 项。Ruff、改动源码格式、模板及部署提案 actionlint、差异空白检查通过；全仓格式检查提示 7 个已有文件差异，历史文件未改动。
+- PharosRAG 固定版本部署后，三次独立 Actions 成功：冷启动 `37130733694` 为 0 hit / 1 miss；新审查 `37130841827` 导入前一运行，1 hit / 0 miss；完成结果恢复 `37130959661` 保留缓存凭据和累计预算，新增模型/工具均为 0，外部缓存导入跳过且导出条目为 0。
+- 两次新审查模型均重新执行，run / finding ID 不复用。9 个 artifact 摘要及 checkpoint 内部成员摘要核对通过；54 份成员/日志已作凭据扫描。PR #5 head/base 未变，保持 Draft、未合并，三类评论数均为 0。
+
+只共享纯编译结果，模型意见、单元测试和调度基线不共享。云端未修改 PR head，内容/编译器失效及错误来源拒绝由离线测试覆盖；没有耗时、费用或审查质量收益结论。收集时一次摘要不符下载被拒绝，重新独立下载后全部通过，原因未确定。设计、学习与完整验收见 [CLOUD_SYNTAX_CACHE.md](CLOUD_SYNTAX_CACHE.md)，长期证据见 [cloud-syntax-cache-20261003.json](validation/cloud-syntax-cache-20261003.json)。上文保留各阶段原始结论。

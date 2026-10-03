@@ -142,9 +142,9 @@ uv run python scripts/install_workflow.py \
 
 - 本机 Docker 运行继续使用 checkpoint/执行回执，完成后恢复不重跑已知检查。未知检查仍需要明确 `--retry-unknown`。
 - GitHub hosted runner 每个 job 是新环境。开启 checkpoint 可在进程停止后归档图与回执，再由新的 Run workflow 指定来源恢复；硬取消仍不保证归档成功，直接 Re-run 可能删除来源 artifact，详见[云端恢复](CLOUD_RECOVERY.md)。人工反馈可以从默认分支的版本化 JSON 导入每个 job 的 SQLite；配置与版本追溯见[跨次记忆](CLOUD_MEMORY.md)。发布可通过远程标记查重。
-- 工作流不使用模型/仓库材料构建的共享缓存；AST/记忆消融仍沿用本机评测入口。
+- 工作流可单独开启[纯语法缓存](CLOUD_SYNTAX_CACHE.md)，仅从可信来源导入有界 JSON 编译结果；模型结论、调度基线和单元测试不共享。AST/记忆消融仍沿用本机评测入口。
 - Actions concurrency 只限制该工作流的同一 PR；跨机器手动同时首次发布仍没有分布式锁。
-- 业务仓库自动预览已验收。云端预览 checkpoint 恢复已验收；下一步完善跨 job 增量缓存、队列与审查质量。
+- 业务仓库自动预览与云端预览 checkpoint 恢复已验收；跨 job 语法缓存已通过独立任务复用及恢复兼容性验收；云端增量基线、队列与审查质量仍需完善。
 
 ## 6. 学习与面试练习
 

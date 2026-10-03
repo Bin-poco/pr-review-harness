@@ -2,7 +2,7 @@
 
 源码仓库：[Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)，公开，默认分支 `main`。上传内容包含源码、测试、学习文档、公开评测材料、`uv.lock` 与 Actions 工作流。本机 `.env`、模型密钥、运行输出、checkpoint 和记忆数据库未上传。
 
-本机最新完整回归包括 311 项测试通过（含 Docker）；PharosRAG 已完成[上下文与记忆升级](CLOUD_CONTEXT_UPGRADE.md)和[云端 checkpoint 恢复验收](CLOUD_RECOVERY.md)，状态恢复的三次独立云端运行均通过。本仓库已完成[云端手动预览与 Draft 跳过验收](CLOUD_ACCEPTANCE.md)，审查已启用，发布保持 `false`。以下保留首次配置步骤，供新部署复用。
+本机最新完整回归包括 343 项测试通过（含 Docker）；PharosRAG 已完成[上下文与记忆升级](CLOUD_CONTEXT_UPGRADE.md)和[云端 checkpoint 恢复验收](CLOUD_RECOVERY.md)，状态恢复的三次独立云端运行均通过。本仓库已完成[云端手动预览与 Draft 跳过验收](CLOUD_ACCEPTANCE.md)，审查已启用，发布保持 `false`。以下保留首次配置步骤，供新部署复用。
 
 ## 1. 填写模型 Secret
 
@@ -55,7 +55,7 @@ uv run python scripts/install_workflow.py \
   --out /你的/业务仓库/.github/workflows/pr-review.yml
 ```
 
-使用已上传并审核过的完整提交 SHA；可通过 `git rev-parse HEAD` 查看本地版本。生成器拒绝分支名和覆盖已有文件，只生成本地文件。PharosRAG 已在默认分支部署调用方工作流，首次部署完成[非 Draft 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)，随后完成[跨次人工反馈验收](CLOUD_MEMORY.md)。当前固定 Harness `e15893bdc6dc4cad4d67e1e12d98261dc47a9758`，[上下文与记忆升级](CLOUD_CONTEXT_UPGRADE.md)验证了两阶段片段索引和反馈展示；后续[云端恢复](CLOUD_RECOVERY.md)验证了状态归档、继续核验及完成结果复用。该仓库的 `HARNESS_ENABLED=true`、`HARNESS_PUBLISH=false`、`HARNESS_MEMORY_ENABLED=true`、`HARNESS_CHECKPOINT_ENABLED=true`；后续 Harness 主分支更新不会自动升级业务仓库所固定的版本。
+使用已上传并审核过的完整提交 SHA；可通过 `git rev-parse HEAD` 查看本地版本。生成器拒绝分支名和覆盖已有文件，只生成本地文件。PharosRAG 已在默认分支部署调用方工作流，首次部署完成[非 Draft 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)，随后完成[跨次人工反馈验收](CLOUD_MEMORY.md)。当前固定 Harness `06467a1a2a09fbfa8d8d9c630087431153d56fd3`，[上下文与记忆升级](CLOUD_CONTEXT_UPGRADE.md)验证了两阶段片段索引和反馈展示；后续[云端恢复](CLOUD_RECOVERY.md)验证了状态归档、继续核验及完成结果复用。后续已完成[跨 job 语法缓存验收](CLOUD_SYNTAX_CACHE.md)。该仓库的 `HARNESS_ENABLED=true`、`HARNESS_PUBLISH=false`、`HARNESS_MEMORY_ENABLED=true`、`HARNESS_CHECKPOINT_ENABLED=true`、`HARNESS_SYNTAX_CACHE_ENABLED=true`；后续 Harness 主分支更新不会自动升级业务仓库所固定的版本。
 
 ## 5. 当前运行边界
 

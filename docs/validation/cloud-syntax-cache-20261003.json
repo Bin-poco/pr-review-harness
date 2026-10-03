@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "repository": "Bin-poco/PharosRAG",
+  "repository_id": 1367008779,
+  "pr": 5,
+  "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+  "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+  "harness_sha": "06467a1a2a09fbfa8d8d9c630087431153d56fd3",
+  "deployment": {
+    "blob": "e8463a5d6dd0ae1bd0cccb95847d0ffba61a6215",
+    "commit": "b6a25454cdee9f96da579f47046d15698fa33977"
+  },
+  "implementation_sha256": "ca43cb10544619ffae8d2d323c048c3b3756d992d37d82991f28ca2e41748d13",
+  "model": "deepseek-flash",
+  "runs": [
+    {
+      "label": "cold",
+      "actions_run_id": 37130733694,
+      "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37130733694",
+      "harness_run_id": "ci-37130733694-1",
+      "resumed": false,
+      "cache": {
+        "enabled": true,
+        "eligible_kind": "syntax",
+        "hits": 0,
+        "misses": 1,
+        "unittest_reused": false,
+        "scope": "evidence in this review; resumed receipts retain original cache provenance",
+        "source": {
+          "status": "cold",
+          "entries": 0,
+          "rejected_sources": 9
+        }
+      },
+      "budget_usage": {
+        "model_attempts": 9,
+        "tool_attempts": 14,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 44084,
+          "output_tokens": 1475,
+          "total_tokens": 45559
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "export_entries": 1,
+      "artifacts": [
+        {
+          "id": 11276962234,
+          "name": "harness-37130733694-1",
+          "digest": "sha256:40133d70ddd046194a95399a239478d0ce4a98215bfda9de1e0cd67323f4b8c3",
+          "size_in_bytes": 28372
+        },
+        {
+          "id": 11277140174,
+          "name": "harness-syntax-37130733694-1",
+          "digest": "sha256:68fca01dff4b9c380ef1813f63ff7f6e4155cb6b7aa8de58f1676f7e97392d24",
+          "size_in_bytes": 865
+        },
+        {
+          "id": 11276119680,
+          "name": "harness-state-37130733694-1",
+          "digest": "sha256:fb600c8ffb858cbe0cbf039ecdf472cf0631173ec4ec18fcb63eb9ad17646bed",
+          "size_in_bytes": 273275
+        }
+      ]
+    },
+    {
+      "label": "warm",
+      "actions_run_id": 37130841827,
+      "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37130841827",
+      "harness_run_id": "ci-37130841827-1",
+      "resumed": false,
+      "cache": {
+        "enabled": true,
+        "eligible_kind": "syntax",
+        "hits": 1,
+        "misses": 0,
+        "unittest_reused": false,
+        "scope": "evidence in this review; resumed receipts retain original cache provenance",
+        "source": {
+          "status": "imported",
+          "entries": 1,
+          "origin": {
+            "run_id": 37130733694,
+            "attempt": 1,
+            "event": "workflow_dispatch",
+            "head_sha": "b6a25454cdee9f96da579f47046d15698fa33977",
+            "artifact_id": 11277140174,
+            "artifact_digest": "sha256:68fca01dff4b9c380ef1813f63ff7f6e4155cb6b7aa8de58f1676f7e97392d24"
+          },
+          "rejected_sources": 0
+        }
+      },
+      "budget_usage": {
+        "model_attempts": 7,
+        "tool_attempts": 11,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 28911,
+          "output_tokens": 1382,
+          "total_tokens": 30293
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "export_entries": 1,
+      "artifacts": [
+        {
+          "id": 11276399366,
+          "name": "harness-37130841827-1",
+          "digest": "sha256:966aee2b61d3826904eac6b0e2236094c94bb02ce3203ad0e04d371c0dbedc17",
+          "size_in_bytes": 23668
+        },
+        {
+          "id": 11276439238,
+          "name": "harness-syntax-37130841827-1",
+          "digest": "sha256:53faba031ab8df46549145449c8ed6cc8d6c5916a4e1c3d4129319df2a1589cd",
+          "size_in_bytes": 868
+        },
+        {
+          "id": 11276424211,
+          "name": "harness-state-37130841827-1",
+          "digest": "sha256:c55ae1dfdba90204009f5a15c1ce0265231931eb44163bc30c20c2c540d7a0fd",
+          "size_in_bytes": 134596
+        }
+      ]
+    },
+    {
+      "label": "resumed",
+      "actions_run_id": 37130959661,
+      "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37130959661",
+      "harness_run_id": "ci-37130841827-1",
+      "resumed": true,
+      "cache": {
+        "enabled": true,
+        "eligible_kind": "syntax",
+        "hits": 1,
+        "misses": 0,
+        "unittest_reused": false,
+        "scope": "evidence in this review; resumed receipts retain original cache provenance",
+        "source": {
+          "status": "imported",
+          "entries": 1,
+          "origin": {
+            "run_id": 37130733694,
+            "attempt": 1,
+            "event": "workflow_dispatch",
+            "head_sha": "b6a25454cdee9f96da579f47046d15698fa33977",
+            "artifact_id": 11277140174,
+            "artifact_digest": "sha256:68fca01dff4b9c380ef1813f63ff7f6e4155cb6b7aa8de58f1676f7e97392d24"
+          },
+          "rejected_sources": 0
+        }
+      },
+      "budget_usage": {
+        "model_attempts": 7,
+        "tool_attempts": 11,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 28911,
+          "output_tokens": 1382,
+          "total_tokens": 30293
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "export_entries": 0,
+      "artifacts": [
+        {
+          "id": 11277170345,
+          "name": "harness-37130959661-1",
+          "digest": "sha256:754e975c6f82f86c4425a1c51c781cd63e6c81505cce80ef03fce5f15f1779d7",
+          "size_in_bytes": 23980
+        },
+        {
+          "id": 11276074992,
+          "name": "harness-syntax-37130959661-1",
+          "digest": "sha256:92ee2c0dfcdc022132a5c8b91e8eea960a9708c68ed30a98c707da839b0631e3",
+          "size_in_bytes": 588
+        },
+        {
+          "id": 11277025731,
+          "name": "harness-state-37130959661-1",
+          "digest": "sha256:9c2082258cc6ab66424a482d77f6293bc58f0150d2e1c1169ad2133906d16695",
+          "size_in_bytes": 134682
+        }
+      ]
+    }
+  ],
+  "local_tests": {
+    "passed": 343,
+    "docker": true,
+    "elapsed_seconds": 150.19,
+    "cache_tests": 32
+  },
+  "checks": {
+    "outer_artifact_digests": true,
+    "checkpoint_member_digests": true,
+    "cache_content_key_and_compiler": true,
+    "fresh_model_runs": true,
+    "completed_resume_additional_model_calls": 0,
+    "completed_resume_additional_tool_calls": 0,
+    "resume_cache_entries": 0,
+    "credential_scan_members_and_logs": 54,
+    "comment_counts": {
+      "reviews": 0,
+      "inline_comments": 0,
+      "issue_comments": 0
+    },
+    "pr_head_unchanged": true
+  },
+  "limits": [
+    "synthetic PR only",
+    "source changes and invalidation verified offline",
+    "no unit tests executed in CI",
+    "no cloud incremental baselines or queue",
+    "no speed, token, cost or review quality improvement claim"
+  ],
+  "validation_notes": [
+    "First local evidence collection stopped on an artifact digest mismatch; no mismatched download was accepted. Fresh independent downloads validated all nine artifacts. The initial cause was not established.",
+    "Full repository format check reported seven pre-existing files; changed source files passed and historical files were left unchanged."
+  ]
+}
