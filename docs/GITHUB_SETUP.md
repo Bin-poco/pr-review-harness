@@ -2,7 +2,7 @@
 
 源码仓库：[Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)，公开，默认分支 `main`。上传内容包含源码、测试、学习文档、公开评测材料、`uv.lock` 与 Actions 工作流。本机 `.env`、模型密钥、运行输出、checkpoint 和记忆数据库未上传。
 
-本机验证包括 173 项测试通过、Docker/事件专项 23 项通过、工作流静态检查和真实 DeepSeek 事件入口预览。本仓库现已完成[云端手动预览与 Draft 跳过验收](CLOUD_ACCEPTANCE.md)，审查已启用，发布保持 `false`。以下保留首次配置步骤，供新部署复用。
+本机当前回归验证包括 203 项测试通过（含 Docker）、Docker/事件专项 23 项通过、工作流静态检查和真实 DeepSeek 事件入口预览。本仓库现已完成[云端手动预览与 Draft 跳过验收](CLOUD_ACCEPTANCE.md)，审查已启用，发布保持 `false`。以下保留首次配置步骤，供新部署复用。
 
 ## 1. 填写模型 Secret
 
@@ -22,6 +22,7 @@
 | --- | --- | --- |
 | `HARNESS_ENABLED` | `true` | 允许工作流执行审查 job |
 | `HARNESS_PUBLISH` | `false` | 仅保存预览，不发布审查评论 |
+| `HARNESS_MEMORY_ENABLED` | 默认 `false` | 完成[版本化反馈配置](CLOUD_MEMORY.md)后开启 |
 | `HARNESS_MODEL` | `deepseek-flash`（可省略） | 已联调的默认模型 ID |
 | `HARNESS_BASE_URL` | `https://api.deepseek.com`（可省略） | 默认官方接口 |
 
@@ -56,6 +57,6 @@ uv run python scripts/install_workflow.py \
 
 ## 5. 当前运行边界
 
-云端默认只读取固定代码并做语法检查，不执行 PR 测试或安装脚本。每个 hosted job 使用独立环境，当前不会跨 job 共享 SQLite 记忆或 checkpoint。手动 Docker 测试、容器限制和完整部署说明见 [执行与自动审查](EXECUTION_AND_AUTOMATION.md)。
+云端默认只读取固定代码并做语法检查，不执行 PR 测试或安装脚本。每个 hosted job 使用独立环境，新版工作流可从业务仓库默认分支导入[版本化人工反馈](CLOUD_MEMORY.md)，每个 job 使用独立 SQLite；checkpoint 尚不跨 job 恢复。手动 Docker 测试、容器限制和完整部署说明见 [执行与自动审查](EXECUTION_AND_AUTOMATION.md)。
 
 文档中标记“本机”的 `outputs/...` 是历史验收路径，未上传到公开仓库。公开评测的 `FREEZE.json` 记录旧实验输入；当前源码变化后校验失败属于预期，后续实验需建立新的封存记录。

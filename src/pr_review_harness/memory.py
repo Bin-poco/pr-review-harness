@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
 from functools import cache
 from pathlib import Path
+from uuid import uuid4
 
 MAX_TEXT_CHARS = 8_000
 MAX_SOURCE_CHARS = 1_024
@@ -70,6 +71,7 @@ def _bounded_record(record: dict[str, object], limit: int) -> str | None:
     """Keep each record valid JSON, even when its text needs shortening."""
     payload = {
         "id": record["id"],
+        "uid": record["record_uid"],
         "disposition": record["disposition"],
         "scope": record["path_glob"],
         "source": record["source"],
@@ -134,9 +136,9 @@ def _feedback_values(repo_id, text, source, path_glob, ttl_days, disposition):
 def _insert(connection, values) -> int:
     cursor = connection.execute(
         """INSERT INTO review_memory
-        (repo_id, text, source, path_glob, disposition, created_at, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        values,
+        (repo_id, text, source, path_glob, disposition, created_at, expires_at, record_uid)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (*values, uuid4().hex),
     )
     if cursor.lastrowid is None:
         raise RuntimeError("SQLite did not return a memory record ID")
@@ -196,6 +198,7 @@ class MemoryStore:
                 "source_run_id": "TEXT",
                 "finding_id": "TEXT",
                 "rule_key": "TEXT",
+                "record_uid": "TEXT",
             }.items():
                 if name not in columns:
                     connection.execute(f"ALTER TABLE review_memory ADD COLUMN {name} {declaration}")
@@ -203,6 +206,28 @@ class MemoryStore:
                 "CREATE INDEX IF NOT EXISTS memory_repo_expiry "
                 "ON review_memory(repo_id, expires_at)"
             )
+            for row in connection.execute(
+                "SELECT id FROM review_memory WHERE record_uid IS NULL"
+            ).fetchall():
+                connection.execute(
+                    "UPDATE review_memory SET record_uid=? WHERE id=?", (uuid4().hex, row["id"])
+                )
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS memory_record_uid ON review_memory(record_uid)"
+            )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS memory_sync (
+                    repo_id TEXT PRIMARY KEY,
+                    bundle_sha256 TEXT NOT NULL,
+                    origin TEXT NOT NULL,
+                    local_changes INTEGER NOT NULL DEFAULT 0
+                )"""
+            )
+            sync_columns = {r["name"] for r in connection.execute("PRAGMA table_info(memory_sync)")}
+            if "local_changes" not in sync_columns:
+                connection.execute(
+                    "ALTER TABLE memory_sync ADD COLUMN local_changes INTEGER NOT NULL DEFAULT 0"
+                )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.db_path, timeout=5)
@@ -233,6 +258,7 @@ class MemoryStore:
         with closing(self._connect()) as connection, connection:
             record_id = _insert(connection, values)
             _set_links(connection, record_id, links)
+            self._mark_local_change(connection, values[0])
             return record_id
 
     def add_feedback(
@@ -311,6 +337,7 @@ class MemoryStore:
                 "status_reason=?, updated_at=? WHERE id=? AND repo_id=?",
                 (replacement, reason, datetime.now(UTC).isoformat(), record_id, repo_id),
             )
+            self._mark_local_change(connection, repo_id)
             return replacement
 
     def revoke(self, repo_id: str, record_id: int, *, reason: str) -> None:
@@ -325,6 +352,11 @@ class MemoryStore:
                 "WHERE id=? AND repo_id=?",
                 (reason, datetime.now(UTC).isoformat(), record_id, repo_id),
             )
+            self._mark_local_change(connection, repo_id)
+
+    @staticmethod
+    def _mark_local_change(connection, repo_id):
+        connection.execute("UPDATE memory_sync SET local_changes=1 WHERE repo_id=?", (repo_id,))
 
     @staticmethod
     def _active_record(connection, repo_id, record_id):
@@ -350,6 +382,101 @@ class MemoryStore:
 
     def recall(self, repo_id: str, paths: list[str], max_chars: int = 4_000) -> str:
         return self.recall_snapshot(repo_id, paths, max_chars).text
+
+    def export_bundle(self, repo_id: str) -> dict:
+        """Export all feedback history with IDs that survive independent databases."""
+        from pr_review_harness.memory_bundle import bundle_from_records
+
+        return bundle_from_records(repo_id, self.list_records(repo_id))
+
+    def import_bundle(self, repo_id: str, bundle: dict, *, origin: dict | None = None) -> None:
+        """Refresh an authoritative bundle atomically, refusing unsaved local edits.
+
+        Import starts in an empty repository namespace. Later refreshes preserve
+        history and terminal states; export local curation before refreshing it.
+        """
+        from pr_review_harness.memory_bundle import (
+            bundle_from_records,
+            bundle_hash,
+            validate_bundle,
+        )
+
+        bundle = validate_bundle(bundle, repo_id)
+        origin_json = json.dumps(origin or {"kind": "local-bundle"}, ensure_ascii=False)
+        with closing(self._connect()) as connection, connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = [
+                dict(row)
+                for row in connection.execute(
+                    "SELECT * FROM review_memory WHERE repo_id=?", (repo_id,)
+                )
+            ]
+            prior = connection.execute(
+                "SELECT * FROM memory_sync WHERE repo_id=?", (repo_id,)
+            ).fetchone()
+            current_hash = bundle_hash(bundle_from_records(repo_id, rows))
+            incoming_hash = bundle_hash(bundle)
+            if rows and prior is None and current_hash != incoming_hash:
+                raise ValueError("Import requires an empty repository namespace or a synced store")
+            if prior and current_hash not in {prior["bundle_sha256"], incoming_hash}:
+                raise ValueError("Local feedback changed; export it before refreshing the bundle")
+            old = {r["uid"]: r for r in bundle_from_records(repo_id, rows)["records"]}
+            incoming = {r["uid"]: r for r in bundle["records"]}
+            if not old.keys() <= incoming.keys():
+                raise ValueError("A memory refresh must retain existing feedback history")
+            lifecycle = {"status", "replaced_by", "status_reason", "updated_at"}
+            for uid, record in old.items():
+                replacement = incoming[uid]
+                if any(record[k] != replacement[k] for k in record.keys() - lifecycle):
+                    raise ValueError(
+                        "Feedback text is immutable; use revise to create a replacement"
+                    )
+                if record["status"] != "active" and record != replacement:
+                    raise ValueError("A memory refresh cannot revive or alter terminal feedback")
+            ids = {row["record_uid"]: row["id"] for row in rows}
+            fields = (
+                "text",
+                "source",
+                "path_glob",
+                "disposition",
+                "created_at",
+                "expires_at",
+                "source_run_id",
+                "finding_id",
+                "rule_key",
+            )
+            for record in bundle["records"]:
+                if record["uid"] not in ids:
+                    if connection.execute(
+                        "SELECT 1 FROM review_memory WHERE record_uid=?", (record["uid"],)
+                    ).fetchone():
+                        raise ValueError("Feedback UID is already assigned to another repository")
+                    cursor = connection.execute(
+                        "INSERT INTO review_memory "
+                        "(repo_id,record_uid,text,source,path_glob,disposition,created_at,expires_at,"
+                        "source_run_id,finding_id,rule_key) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                        (repo_id, record["uid"], *(record[k] for k in fields)),
+                    )
+                    ids[record["uid"]] = cursor.lastrowid
+            for record in bundle["records"]:
+                connection.execute(
+                    "UPDATE review_memory SET status=?,replaced_by=?,status_reason=?,updated_at=? "
+                    "WHERE id=? AND repo_id=?",
+                    (
+                        record["status"],
+                        ids.get(record["replaced_by"]),
+                        record["status_reason"],
+                        record["updated_at"],
+                        ids[record["uid"]],
+                        repo_id,
+                    ),
+                )
+            connection.execute(
+                "INSERT INTO memory_sync (repo_id,bundle_sha256,origin) VALUES (?,?,?) "
+                "ON CONFLICT(repo_id) DO UPDATE SET "
+                "bundle_sha256=excluded.bundle_sha256,origin=excluded.origin,local_changes=0",
+                (repo_id, bundle_hash(bundle), origin_json),
+            )
 
     def recall_snapshot(
         self, repo_id: str, paths: list[str], max_chars: int = 4_000
@@ -415,6 +542,7 @@ class MemoryStore:
                     entries.append(
                         {
                             "id": row["id"],
+                            "uid": row["record_uid"],
                             "scope": scope,
                             "source": row["source"],
                             "disposition": row["disposition"],
@@ -425,6 +553,9 @@ class MemoryStore:
                             "truncated": json.loads(encoded)["text"] != row["text"],
                         }
                     )
+            synced = connection.execute(
+                "SELECT * FROM memory_sync WHERE repo_id=?", (repo_id,)
+            ).fetchone()
         return MemoryRecall(
             output,
             {
@@ -443,5 +574,14 @@ class MemoryStore:
                     if g["eligible_count"] > 1 and any(e["rule_key"] == key for e in entries)
                 ],
                 "conflict_detection": "explicit rule_key only; keyless records unchecked",
+                "storage": (
+                    {
+                        "bundle_sha256": synced["bundle_sha256"],
+                        "origin": json.loads(synced["origin"]),
+                        "local_changes": bool(synced["local_changes"]),
+                    }
+                    if synced
+                    else {"kind": "local-sqlite"}
+                ),
             },
         )

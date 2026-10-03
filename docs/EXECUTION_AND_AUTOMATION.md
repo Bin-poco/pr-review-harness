@@ -99,6 +99,7 @@ uv run --env-file .env pr-harness github-review \
 | Variable `HARNESS_MODEL` | 默认 `deepseek-flash`，可改模型 ID |
 | Variable `HARNESS_BASE_URL` | 默认 `https://api.deepseek.com` |
 | Variable `HARNESS_PUBLISH` | 默认 `false`；改成 `true` 才自动发送 COMMENT |
+| Variable `HARNESS_MEMORY_ENABLED` | 默认 `false`；完成[反馈文件配置](CLOUD_MEMORY.md)后开启 |
 
 `GITHUB_TOKEN` 由 GitHub 提供，权限为 contents:read、pull-requests:write。这里写权限用于可选发布；不自动 approve、请求修改、合并 PR 或写长期记忆。开启自动发布会通知贡献者，应由仓库维护者明确配置。
 
@@ -139,10 +140,10 @@ uv run python scripts/install_workflow.py \
 ## 5. 恢复、记忆与上线边界
 
 - 本机 Docker 运行继续使用 checkpoint/执行回执，完成后恢复不重跑已知检查。未知检查仍需要明确 `--retry-unknown`。
-- GitHub hosted runner 每个 job 是新环境。当前不会自动恢复被取消的图，也不会跨 job 持久复用 SQLite 人工记忆；需要外部受控存储和调度才能实现。发布可通过远程标记查重。
+- GitHub hosted runner 每个 job 是新环境。当前不会自动恢复被取消的图。人工反馈可以从默认分支的版本化 JSON 导入每个 job 的 SQLite；配置与版本追溯见[跨次记忆](CLOUD_MEMORY.md)。发布可通过远程标记查重。
 - 工作流不使用模型/仓库材料构建的共享缓存；AST/记忆消融仍沿用本机评测入口。
 - Actions concurrency 只限制该工作流的同一 PR；跨机器手动同时首次发布仍没有分布式锁。
-- 业务仓库自动预览已验收。下一步完善增量审查、受控存储、队列与审查质量；跨 job 存储尚未接通。
+- 业务仓库自动预览已验收。下一步完善增量审查、云端 checkpoint 恢复、队列与审查质量。
 
 ## 6. 学习与面试练习
 

@@ -12,7 +12,8 @@
 flowchart LR
     A[本地 Git 或 GitHub PR] --> B[固定 SHA 与 merge base]
     B --> C[有预算的上下文选择]
-    M[SQLite 人工反馈] --> N[仓库/路径/有效期筛选]
+    U[默认分支版本化人工反馈] --> M[本次 SQLite 人工反馈]
+    M --> N[仓库/路径/有效期筛选]
     N --> D[Deep Agents 审查循环]
     C --> D
     S[按需加载的审查技能] --> D
@@ -33,7 +34,7 @@ Deep Agents 提供通用运行、上下文摘要、工具结果落盘、记忆�
 
 当前装配入口是 **ContextManager + BudgetPolicy**。MemoryStore 先按仓库/路径/期限召回人工反馈，生成冻结快照；ContextManager 将它和 ReviewState 的可验证事实注入，再交给同一个 SDK 摘要器压缩历史，最后校验完整请求。没有再叠加 Letta、Mem0 或其他运行框架。
 
-LangGraph SQLite checkpoint 保存消息、StateBackend 文件及 ReviewState。ReviewSession 只是工具执行时的视图，工具事务返回累积 state 并按序号合并；执行回执独立保存意图、结果与全局用量，补足“执行完成但图状态还未提交”的中断窗口。人工记忆、运行 checkpoint、执行回执各自有清楚的生命周期。详见 [统一设计与实现边界](CONTEXT_MEMORY_DESIGN.md)。
+LangGraph SQLite checkpoint 保存消息、StateBackend 文件及 ReviewState。ReviewSession 只是工具执行时的视图，工具事务返回累积 state 并按序号合并；执行回执独立保存意图、结果与全局用量，补足“执行完成但图状态还未提交”的中断窗口。人工记忆、运行 checkpoint、执行回执各自有清楚的生命周期。新增[版本化反馈文件](CLOUD_MEMORY.md)供独立云端 job 读取，报告追溯文件提交与稳定 UID；checkpoint 仍不跨 job 恢复。详见 [统一设计与实现边界](CONTEXT_MEMORY_DESIGN.md)。
 
 `SubmissionGuard` 保存提交修复状态，识别截断、缺失提交与无效参数/位置，按剩余预算限次要求重新提交。`github.py` 提供固定版本获取、发布预览、COMMENT 和重复记录检查；GitHub 人工反馈按数字仓库 ID 共享。见 [接入指南](GITHUB_INTEGRATION.md)和[本次运行记录](LANDING_V1.md)。
 

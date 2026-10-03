@@ -314,6 +314,8 @@ PY
 
 配合阅读 [记忆测试](../tests/test_memory.py) 的 `test_revision_and_revocation_preserve_history_and_stop_old_recall`。
 
+**跨次云端练习**：阅读 [memory_bundle.py](../src/pr_review_harness/memory_bundle.py)，解释稳定 UID 为什么比本地数字 ID 更适合跨数据库；导出后导入另一数据库，核对修订/撤销历史。再核对 `memory-source.json`、冻结召回和各次请求的 `memory_display_text`，区分下载、召回和实际展示。默认分支的记忆 SHA 为什么可以不同于 PR base/head？
+
 **自检**：为什么不把所有模型意见直接存进长期记忆？为什么更新记忆之后，旧 run 恢复仍看旧快照？这套系统是否已经证明记忆可以提升后续审查效果？
 
 ## 7. 中断恢复：checkpoint 为什么还需要执行回执
@@ -470,7 +472,7 @@ uv run --env-file .env pr-harness demo --live \
 
 首轮配置由 [FREEZE.json](../evaluation/independent_real_prs/FREEZE.json) 记录。修改源文件后旧 freeze 的当前输入校验会失败，属于预期行为；后续实验应建立新版本记录并保留首轮资料。
 
-[PharosRAG 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)已完成业务仓库部署与非 Draft 事件审查，可对照 PR #5、Actions 日志和结构化摘要学习跨仓库接入。后续可继续做跨 job 存储、队列与增量审查。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
+[PharosRAG 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)已完成业务仓库部署与非 Draft 事件审查，可对照 PR #5、Actions 日志和结构化摘要学习跨仓库接入。已实现[跨 job 人工反馈读取](CLOUD_MEMORY.md)；后续可继续做云端 checkpoint 恢复、队列与增量审查。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
 
 ### 10.3 执行隔离与自动事件
 
@@ -488,7 +490,7 @@ uv run --env-file .env pr-harness demo --live \
 
 按“场景 → 流程 → 自己的设计 → 真实发现 → 下一步”组织：
 
-> 项目面向 Python 仓库的 PR 审查。我基于 Deep Agents 实现固定版本输入、相关代码选择、双版本检查和结构化报告。重点做了统一上下文预算、工具事实状态、带来源和生命周期的人工反馈，以及 checkpoint 和执行回执。根据公开 PR 试跑中的提交故障加入预算内限次修复，并接入 GitHub 获取、发布预览、版本校验和重复检查；进一步实现固定镜像的 Docker 测试执行和经过版本校验的自动事件入口。原失败三例重放均有效提交，两例观察到截断后修复，真实测试 PR 已完成发布联调。已完成真实 DeepSeek 云端手动预览，并在 PharosRAG 部署固定版本的工作流、通过非 Draft PR 事件完成自动审查及独立核验，自动发布保持关闭。审查质量还需人工复核，跨 job 存储仍待完成。
+> 项目面向 Python 仓库的 PR 审查。我基于 Deep Agents 实现固定版本输入、相关代码选择、双版本检查和结构化报告。重点做了统一上下文预算、工具事实状态、带来源和生命周期的人工反馈，以及 checkpoint 和执行回执。根据公开 PR 试跑中的提交故障加入预算内限次修复，并接入 GitHub 获取、发布预览、版本校验和重复检查；进一步实现固定镜像的 Docker 测试执行和经过版本校验的自动事件入口。原失败三例重放均有效提交，两例观察到截断后修复，真实测试 PR 已完成发布联调。已完成真实 DeepSeek 云端手动预览，并在 PharosRAG 部署固定版本的工作流、通过非 Draft PR 事件完成自动审查及独立核验，自动发布保持关闭。已实现默认分支版本化人工反馈的跨 job 读取。审查质量还需人工复核，云端 checkpoint 恢复仍待完成。
 
 这是学习后的讲解模板。亲自完成阅读和练习，再用自己的语言说明承担的设计与改造；SDK 提供的循环、摘要、技能加载和图存储要说清来源。
 
@@ -509,7 +511,7 @@ uv run --env-file .env pr-harness demo --live \
 | 为什么临时目录不够？ | 不能限制宿主文件/网络/进程；Docker 加权限、挂载、网络和资源限制；说明共享内核边界 |
 | 宿主被杀后如何限制测试？ | 容器内可信 PID 1 的截止时间，不只依赖宿主 finally |
 | 自动流程如何选择版本？ | 校验事件仓库与 base/head，再校验获取和发布；只运行可信 Harness 源码 |
-| 当前最明显的问题？ | 遗漏和未确认误报、跨 job 存储尚未接通、尚未验证记忆质量收益 |
+| 当前最明显的问题？ | 遗漏和未确认误报、云端 checkpoint 尚不跨 job 恢复、尚未验证记忆质量收益 |
 
 ## 12. 源码导航与学习笔记
 
@@ -525,6 +527,7 @@ uv run --env-file .env pr-harness demo --live \
 深入资料：
 
 - [上下文与记忆统一设计](CONTEXT_MEMORY_DESIGN.md)
+- [跨次云端人工反馈记忆](CLOUD_MEMORY.md)
 - [评测设计](EVALUATION.md)
 - [当前业务范围](PROJECT.md)
 - [真实模型首轮结果](../evaluation/independent_real_prs/FIRST_RUN.md)

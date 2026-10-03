@@ -16,6 +16,7 @@ from pr_review_harness.evaluation import evaluate_report, load_gold
 from pr_review_harness.execution import ExecutionPolicy
 from pr_review_harness.github import PRRef, configured_client, fetch_snapshot, publish_report
 from pr_review_harness.memory import MemoryStore
+from pr_review_harness.memory_bundle import DEFAULT_MEMORY_PATH, load_github_memory, read_bundle
 from pr_review_harness.persistence import RunStore, atomic_json
 from pr_review_harness.report import write_report
 from pr_review_harness.runtime import DemoChatModel, ReviewFailure, review
@@ -58,6 +59,13 @@ def parser() -> argparse.ArgumentParser:
     _review_arguments(ci, remote=True)
     _budget_arguments(ci)
     _model_arguments(ci)
+    for command in (github, ci):
+        command.add_argument(
+            "--github-memory",
+            action="store_true",
+            help="Require and import feedback pinned from the business repository default branch",
+        )
+        command.add_argument("--github-memory-path", default=DEFAULT_MEMORY_PATH)
     fetch = commands.add_parser(
         "github-fetch", help="Fetch pinned GitHub PR context without a model"
     )
@@ -138,6 +146,14 @@ def parser() -> argparse.ArgumentParser:
     feedback.add_argument("--disposition", choices=["accepted", "dismissed"], default="dismissed")
     listing = memories.add_parser("list")
     _memory_repository_arguments(listing)
+    export = memories.add_parser("export", help="Export complete versioned feedback history")
+    _memory_repository_arguments(export)
+    export.add_argument("--out", type=Path, required=True)
+    restore = memories.add_parser(
+        "import", help="Import a validated bundle; refuse local edit loss"
+    )
+    _memory_repository_arguments(restore)
+    restore.add_argument("--bundle", type=Path, required=True)
     revise = memories.add_parser("revise", help="Replace feedback and retain its history")
     revise.add_argument("--rule-key", help="Defaults to previous topic key")
     revise.add_argument("--text", required=True)
@@ -150,7 +166,19 @@ def parser() -> argparse.ArgumentParser:
         _memory_repository_arguments(command)
         command.add_argument("--id", type=int, required=True)
         command.add_argument("--reason", required=True)
-    for command in (add, feedback, listing, revise, revoke, actual, demo, github, ci):
+    for command in (
+        add,
+        feedback,
+        listing,
+        export,
+        restore,
+        revise,
+        revoke,
+        actual,
+        demo,
+        github,
+        ci,
+    ):
         command.add_argument("--memory-db", type=Path, default=Path(".pr-harness/memory.sqlite3"))
     return root
 
@@ -502,6 +530,12 @@ def _dispatch(arguments) -> int:
         store = MemoryStore(arguments.memory_db)
         if arguments.memory_command == "list":
             print(json.dumps(store.list_records(snapshot.repo_id), ensure_ascii=False, indent=2))
+        elif arguments.memory_command == "export":
+            atomic_json(arguments.out, store.export_bundle(snapshot.repo_id))
+            print(f"Exported feedback bundle: {arguments.out.resolve()}")
+        elif arguments.memory_command == "import":
+            store.import_bundle(snapshot.repo_id, read_bundle(arguments.bundle, snapshot.repo_id))
+            print(f"Imported feedback bundle: {arguments.memory_db.resolve()}")
         elif arguments.memory_command == "feedback":
             report = json.loads(arguments.report.read_text(encoding="utf-8"))
             record_id = store.add_feedback(
@@ -568,9 +602,13 @@ def _dispatch(arguments) -> int:
         raise ValueError("Use 1–10 verifier findings.")
     if not 1 <= arguments.verify_model_calls <= 50 or not 1 <= arguments.verify_tool_calls <= 100:
         raise ValueError("Use 1–50 verifier model calls and 1–100 verifier tool calls.")
-    memory = MemoryStore(arguments.memory_db).recall_snapshot(
-        snapshot.repo_id, [item.path for item in snapshot.changed_files]
-    )
+    store = MemoryStore(arguments.memory_db)
+    if source and arguments.github_memory:
+        receipt = load_github_memory(
+            snapshot, source, configured_client(), store, path=arguments.github_memory_path
+        )
+        atomic_json(arguments.out / "memory-source.json", receipt)
+    memory = store.recall_snapshot(snapshot.repo_id, [item.path for item in snapshot.changed_files])
     model = _live_model(arguments)
     policy = _policy(arguments, model)
     report = review(

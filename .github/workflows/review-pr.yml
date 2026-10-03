@@ -47,10 +47,12 @@ jobs:
           HARNESS_MODEL: ${{ vars.HARNESS_MODEL || 'deepseek-flash' }}
           HARNESS_BASE_URL: ${{ vars.HARNESS_BASE_URL || 'https://api.deepseek.com' }}
           HARNESS_CI_PUBLISH: ${{ vars.HARNESS_PUBLISH || 'false' }}
+          HARNESS_CI_MEMORY: ${{ vars.HARNESS_MEMORY_ENABLED || 'false' }}
         shell: bash
         run: |
           args=()
           if [ "$HARNESS_CI_PUBLISH" = 'true' ]; then args+=(--send); fi
+          if [ "$HARNESS_CI_MEMORY" = 'true' ]; then args+=(--github-memory); fi
           uv run --frozen --no-dev pr-harness github-ci \
             --event-file "$GITHUB_EVENT_PATH" \
             --repository "$GITHUB_REPOSITORY" \
