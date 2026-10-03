@@ -22,7 +22,7 @@
 | 本项目 github/cli | 固定版本 PR 获取、发布预览、COMMENT/行内意见、版本与重复检查、远程反馈身份 |
 | 本项目 memory | SQLite 人工反馈、仓库/路径隔离、来源、过期、修订/撤销/替换链、run/finding 来源、rule_key 主题分组与冻结召回快照 |
 | 本项目 execution | 固定镜像 ID、私有快照导出、Docker 无网络/只读/非 root/资源限制、容器与宿主截止时间、有上限的管道输出；执行配置进入恢复身份 |
-| 本项目 automation | GitHub 事件仓库与 SHA 校验、自动入口、可信源码工作流、默认预览与调用方工作流生成器；云端部署待启用 |
+| 本项目 automation | GitHub 事件仓库与 SHA 校验、自动入口、可信源码工作流、默认预览与调用方工作流生成器；本仓库云端手动预览与 Draft 跳过已验收 |
 | 本项目 review_skills/skills | 两个短 PR 审查 playbook 与打包接入；加载机制来自 Deep Agents |
 | 本项目 verification/evaluation/benchmark | 独立核验约束、人工标注位置匹配、诊断及固定预算四组消融；未测量模型质量 |
 | 本项目 demo/tests | 可重跑的流程演示与工程行为验证；不等同于模型质量数据集 |

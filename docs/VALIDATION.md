@@ -72,3 +72,10 @@ uv run pr-harness benchmark --cases outputs/context-memory-v3/demo-cases.json \
 - `uv run ruff check src tests evaluation/submission_replay.py`、本次修改文件格式检查、`git diff --check`：通过。执行容器、自动触发和增量审查待完成。
 
 本次原始路径、证据边界和当前联调状态见 [LANDING_V1.md](LANDING_V1.md)。旧批次与 freeze 未改写；新源码下的旧版本身份校验不能当作当前结果。
+
+## 第六轮：容器执行与云端预览
+
+- 本机全量 173 项通过、Docker/事件专项 23 项通过，真实容器和恢复记录见 [LANDING_V2.md](LANDING_V2.md)。
+- 本仓库 Draft PR #1 完成真实 DeepSeek 云端手动预览：1 条 P2，第 6 行定位；独立核验 completed/supported；6 次模型、9 次工具尝试，提交修复 0 次。
+- 自动 pull_request_target 事件正确跳过 Draft；手动运行仅做语法检查，发布 preview，远程审查和评论均为 0。
+- Actions 运行链接与 artifact 摘要见 [CLOUD_ACCEPTANCE.md](CLOUD_ACCEPTANCE.md)。人工样例只用于工程验收；非 Draft 自动审查、业务仓库部署、跨 job 存储和质量收益仍需继续验证。

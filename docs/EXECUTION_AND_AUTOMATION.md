@@ -1,6 +1,6 @@
 # 执行隔离与 GitHub 自动审查
 
-更新时间：2026-10-03。源码与本机验证已完成；GitHub 云端工作流还没有启用。
+更新时间：2026-10-03。源码、本机验证与本仓库云端手动预览已完成；自动 Draft 跳过也已验收，发布保持关闭。详见 [云端记录](CLOUD_ACCEPTANCE.md)。
 
 ## 1. 两条执行路径
 
@@ -134,7 +134,7 @@ uv run python scripts/install_workflow.py \
 
 生成器只写本地文件，拒绝覆盖现有工作流和非 SHA 引用。业务仓库的 workflow 会检出指定 Harness 仓库/提交；`GITHUB_REPOSITORY` 和事件文件仍属于业务仓库，模型审查目标不会被切换成 Harness。配置表中的 Secret/Variables 放在业务仓库。私有 Harness 仓库的跨仓库源码凭据尚未支持。
 
-工作流须部署到业务仓库的可信默认分支才接收事件。目前 Harness 源码仓库已创建，PharosRAG 默认分支尚未部署调用方工作流，GitHub Secrets/Variables 也未配置，**尚无在线自动触发记录**。上一阶段测试 PR #4 仍是未合并的 Draft。Harness 仓库自身的工作流只能审查其自身 PR；不会直接接收 PharosRAG 的 PR 事件。
+工作流须部署到业务仓库的可信默认分支才接收事件。目前 Harness 仓库已配置 Secret/Variables，完成云端手动预览及自动 Draft 跳过；非 Draft 自动审查还需专项验收。PharosRAG 默认分支尚未部署调用方工作流。上一阶段测试 PR #4 仍是未合并的 Draft。Harness 仓库自身的工作流只能审查其自身 PR；不会直接接收 PharosRAG 的 PR 事件。
 
 ## 5. 恢复、记忆与上线边界
 
@@ -142,7 +142,7 @@ uv run python scripts/install_workflow.py \
 - GitHub hosted runner 每个 job 是新环境。当前不会自动恢复被取消的图，也不会跨 job 持久复用 SQLite 人工记忆；需要外部受控存储和调度才能实现。发布可通过远程标记查重。
 - 工作流不使用模型/仓库材料构建的共享缓存；AST/记忆消融仍沿用本机评测入口。
 - Actions concurrency 只限制该工作流的同一 PR；跨机器手动同时首次发布仍没有分布式锁。
-- 下一步应选择一个真实仓库完成云端预览验收，再考虑增量审查、受控存储、队列与审查质量改善。
+- 下一步在业务仓库部署固定源码并验收非 Draft 自动预览，再考虑增量审查、受控存储、队列与审查质量改善。
 
 ## 6. 学习与面试练习
 

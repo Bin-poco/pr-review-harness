@@ -53,3 +53,7 @@
 本阶段本机验收时 Harness 没有远程地址。随后按用户授权创建公开仓库 [Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)，上传源码、学习文档与工作流。未向 PharosRAG 默认分支提交工作流，也未配置 GitHub Secrets/Variables。没有云端 Actions 运行，不能把本机模拟事件称为线上自动运行。
 
 下一步按 [GitHub 上线配置](GITHUB_SETUP.md) 设置模型 Secret，在可控仓库先验收云端预览；业务仓库使用固定 Harness SHA 的调用方工作流。跨 job checkpoint/人工记忆共享、增量审查、队列、分布式首次发布锁和完整运维仍未实现。自动流程仅语法检查；自定义测试依赖需要审核过的镜像。
+
+## 后续云端记录
+
+以上保留本阶段本机验收时的部署状态。2026-10-03 随后完成本仓库的云端手动预览与自动 Draft 跳过，见 [CLOUD_ACCEPTANCE.md](CLOUD_ACCEPTANCE.md)。原实验与本机运行结果未改写；PharosRAG 默认分支仍未部署调用方工作流。

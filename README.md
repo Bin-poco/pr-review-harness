@@ -14,13 +14,13 @@
 | 持久恢复 | LangGraph SQLite checkpoint 保存消息、临时文件与事实状态；执行回执保存检查结果与累计用量；固定版本 resume |
 | 提交可靠性 | 输出截断、无提交、参数与校验错误的预算内限次修复；保留原始输出与失败诊断 |
 | GitHub 发布 | 默认本地预览，显式发布 COMMENT 与行内意见；版本校验、本地回执、远程标记去重 |
-| 自动审查 | Actions 工作流与事件入口；可信源码、事件版本校验、同 PR 并发取消、默认预览；云端部署待启用 |
+| 自动审查 | Actions 工作流与事件入口；可信源码、事件版本校验、同 PR 并发取消、默认预览；云端手动预览与 Draft 跳过已验收 |
 | 审查技能 | 两个短 playbook 通过 Deep Agents Skills 按需读取，分别针对边界回归和 API 兼容 |
 | 独立核验 | 可选第二轮 Agent，重新读取 base/head，对原意见给出支持、驳回或不确定的判断；保留原意见与轨迹 |
 | 本地评估 | 将保存的报告与固定版本人工标注比较，输出位置命中候选指标、遗漏、重复和证据诊断；四组上下文/记忆消融入口 |
 | 报告 | Markdown + JSON；head 行号、证据 ID、版本信息、工具轨迹、用量与耗时 |
 
-**当前是可运行的工程原型。** GitHub 手动发布、Docker 执行和自动审查入口已实现；Actions 工作流经静态检查、事件入口经本机真实模型联调，云端部署还未启用。增量审查、跨 job 存储和部署运维仍待完成。已完成 [3 个 Click PR 开发案例](evaluation/click_real_prs/FIRST_RUN.md)和 [18 个跨仓库公开 PR 的封存试跑](evaluation/independent_real_prs/FIRST_RUN.md)。原试跑中 36 次审查有 3 次未能提交有效结果，本次[故障重放](docs/LANDING_V1.md)三例均完成，其中两例观察到截断后的修复提交。位置命中与误报仍需逐条根因复核，不能作为准确率结论。AST 关联是静态启发式，记忆检索采用确定性筛选；第二轮核验也只是模型意见，不能替代人工判断。
+**当前是可运行的工程原型。** GitHub 手动发布、Docker 执行和自动审查入口已实现；Actions 工作流经静态检查、事件入口经本机真实模型联调，并完成[云端手动预览与 Draft 事件跳过验收](docs/CLOUD_ACCEPTANCE.md)。增量审查、跨 job 存储和部署运维仍待完成。已完成 [3 个 Click PR 开发案例](evaluation/click_real_prs/FIRST_RUN.md)和 [18 个跨仓库公开 PR 的封存试跑](evaluation/independent_real_prs/FIRST_RUN.md)。原试跑中 36 次审查有 3 次未能提交有效结果，本次[故障重放](docs/LANDING_V1.md)三例均完成，其中两例观察到截断后的修复提交。位置命中与误报仍需逐条根因复核，不能作为准确率结论。AST 关联是静态启发式，记忆检索采用确定性筛选；第二轮核验也只是模型意见，不能替代人工判断。
 
 ## 运行示例
 
@@ -99,7 +99,7 @@ uv run --env-file .env pr-harness github-publish \
 
 `.github/workflows/review-pr.yml` 提供 PR 事件与手动触发；默认需 `HARNESS_ENABLED=true` 才运行，`HARNESS_PUBLISH=true` 才自动发布。接入其他业务仓库时用 `scripts/install_workflow.py` 生成固定 Harness 提交的工作流。配置 Secret、部署到可信默认分支后才能在线使用，见[部署步骤](docs/EXECUTION_AND_AUTOMATION.md)。
 
-本项目已发布到 [Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)。首次云端配置和预览步骤见 [GitHub 上线配置](docs/GITHUB_SETUP.md)；源码上传不代表云端验收已完成。
+本项目已发布到 [Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)。首次配置步骤见 [GitHub 上线配置](docs/GITHUB_SETUP.md)，已完成的本仓库云端手动预览见 [验收记录](docs/CLOUD_ACCEPTANCE.md)。
 
 ## 中断后恢复
 
@@ -172,6 +172,7 @@ uv run pr-harness memory feedback --repo /你的/仓库 \
 - [分章节学习讲义、动手练习与面试准备](docs/STUDY_GUIDE.md)
 - [GitHub 接入、发布与人工反馈](docs/GITHUB_INTEGRATION.md)
 - [公开仓库配置与首次云端预览](docs/GITHUB_SETUP.md)
+- [真实云端预览与 Draft 事件验收](docs/CLOUD_ACCEPTANCE.md)
 - [提交可靠性与落地第一阶段记录](docs/LANDING_V1.md)
 - [容器执行、自动审查部署与源码学习](docs/EXECUTION_AND_AUTOMATION.md)
 - [执行隔离与自动入口的第二阶段验证](docs/LANDING_V2.md)
@@ -185,6 +186,6 @@ uv run pytest
 uv run ruff check src tests
 ```
 
-统一设计 A–D 已实现，E 的四组实验入口已实现；跨仓库试点已封存并完成首轮运行，提交修复、手动 GitHub 接入、Docker 执行与自动入口已实现。独立人工审查和规划的 24 例正式评测集仍待完成。接下来在实际仓库启用云端预览，同时完成重复运行、根因复核和固定预算消融，再形成有数据支撑的简历表述。
+统一设计 A–D 已实现，E 的四组实验入口已实现；跨仓库试点已封存并完成首轮运行，提交修复、手动 GitHub 接入、Docker 执行与自动入口已实现。独立人工审查和规划的 24 例正式评测集仍待完成。本仓库云端手动预览已验收。接下来部署到业务仓库并验收非 Draft 自动预览，同时完成重复运行、根因复核和固定预算消融，再形成有数据支撑的简历表述。
 
 设计参考：[Anthropic 上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[长任务 Harness 的生成与评估分工](https://www.anthropic.com/engineering/harness-design-long-running-apps)、[Agent 评估](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)及 [Deep Agents Skills 文档](https://docs.langchain.com/oss/python/deepagents/skills)。这些资料提供设计思路，项目效果仍需自身数据验证。

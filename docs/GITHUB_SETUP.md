@@ -2,7 +2,7 @@
 
 源码仓库：[Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)，公开，默认分支 `main`。上传内容包含源码、测试、学习文档、公开评测材料、`uv.lock` 与 Actions 工作流。本机 `.env`、模型密钥、运行输出、checkpoint 和记忆数据库未上传。
 
-本机验证包括 173 项测试通过、Docker/事件专项 23 项通过、工作流静态检查和真实 DeepSeek 事件入口预览。**云端 Actions 尚未验收。** 上传后工作流仍需明确启用，首次保持预览。
+本机验证包括 173 项测试通过、Docker/事件专项 23 项通过、工作流静态检查和真实 DeepSeek 事件入口预览。本仓库现已完成[云端手动预览与 Draft 跳过验收](CLOUD_ACCEPTANCE.md)，审查已启用，发布保持 `false`。以下保留首次配置步骤，供新部署复用。
 
 ## 1. 填写模型 Secret
 
@@ -29,7 +29,7 @@
 
 ## 3. 选择测试 PR
 
-这个仓库里的工作流只审查 **pr-review-harness 本仓库的 PR**。源码刚上传时尚无测试 PR；PharosRAG 的 `#4` 不能直接填写到这里。
+这个仓库里的工作流只审查 **pr-review-harness 本仓库的 PR**。本仓库已创建用于验收的 [Draft PR #1](https://github.com/Bin-poco/pr-review-harness/pull/1)；PharosRAG 的 `#4` 不能直接填写到这里。
 
 准备一个本仓库可控测试 PR 后，打开 [Actions](https://github.com/Bin-poco/pr-review-harness/actions)，选择 **PR review harness → Run workflow**，分支选 `main`，填写该 PR 的编号。手动入口支持 Draft；自动 PR 事件跳过 Draft。测试 PR 保持未合并即可完成预览验收。
 

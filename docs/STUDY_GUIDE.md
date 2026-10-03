@@ -23,7 +23,7 @@
 | 9 | 真实 PR 与评测 | 60–90 分钟 | 完成一份错误分析 |
 | 10 | 改造任务与面试讲解 | 90 分钟以上 | 一项小改造、一份设计说明 |
 
-新增提交可靠性、GitHub 接入、Docker 执行与自动事件入口；第 10 节给出源码路线，[GitHub 操作指南](GITHUB_INTEGRATION.md)和[执行与自动审查](EXECUTION_AND_AUTOMATION.md)提供命令与部署边界。云端工作流待启用。
+新增提交可靠性、GitHub 接入、Docker 执行与自动事件入口；第 10 节给出源码路线，[GitHub 操作指南](GITHUB_INTEGRATION.md)和[执行与自动审查](EXECUTION_AND_AUTOMATION.md)提供命令与部署边界。本仓库云端手动预览与 Draft 跳过已验收，见[云端记录](CLOUD_ACCEPTANCE.md)。
 
 可以每天完成一次，也可以把前五次作为第一周、后五次作为第二周。前置知识包括 Python 函数与类、dataclass、基本 SQL、Git 分支与提交、工具调用的请求和响应。
 
@@ -470,7 +470,7 @@ uv run --env-file .env pr-harness demo --live \
 
 首轮配置由 [FREEZE.json](../evaluation/independent_real_prs/FREEZE.json) 记录。修改源文件后旧 freeze 的当前输入校验会失败，属于预期行为；后续实验应建立新版本记录并保留首轮资料。
 
-后续可继续做云端 Actions 部署、跨 job 存储、队列与增量审查。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
+后续可继续做业务仓库部署、非 Draft 自动预览验收、跨 job 存储、队列与增量审查。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
 
 ### 10.3 执行隔离与自动事件
 
@@ -478,7 +478,7 @@ uv run --env-file .env pr-harness demo --live \
 
 执行路径是 `ExecutionPolicy.prepare → identity → 导出固定版本 → 容器 PID 1 监督 → 有上限的输出 → CheckRun → 回执`。运行前先锁定镜像 ID，不在工具执行时偷偷换标签或回退本机；导出目录保留私有权限，容器用户无 root 权限。宿主 finally 清理与容器内部截止时间分别覆盖正常异常和宿主强制终止。
 
-事件路径是 `parse_event → fetch_snapshot → validate_source → review → publish_report`。检查配置仓库、数字 ID、PR 编号和事件 base/head，避免旧事件消耗模型预算或评论新提交。工作流运行可信 Harness，PR 标题/分支名只作为材料，不进入运行命令。发布默认预览，部署与实际云端验收状态见[第二阶段记录](LANDING_V2.md)。
+事件路径是 `parse_event → fetch_snapshot → validate_source → review → publish_report`。检查配置仓库、数字 ID、PR 编号和事件 base/head，避免旧事件消耗模型预算或评论新提交。工作流运行可信 Harness，PR 标题/分支名只作为材料，不进入运行命令。发布默认预览，本机验证见[第二阶段记录](LANDING_V2.md)，实际云端手动预览与 Draft 跳过见[云端记录](CLOUD_ACCEPTANCE.md)。
 
 **练习**：运行 Docker demo，找出 manifest 中镜像 ID 和限制；修改 timeout 后尝试恢复，解释拒绝原因。构造一个旧 head 的事件，指出模型调用前哪一步阻止了它。再解释为什么 GitHub hosted runner 不会天然共享 SQLite 人工记忆，以及取消旧 job 为什么不能保证外部发布恰好一次。
 
@@ -488,7 +488,7 @@ uv run --env-file .env pr-harness demo --live \
 
 按“场景 → 流程 → 自己的设计 → 真实发现 → 下一步”组织：
 
-> 项目面向 Python 仓库的 PR 审查。我基于 Deep Agents 实现固定版本输入、相关代码选择、双版本检查和结构化报告。重点做了统一上下文预算、工具事实状态、带来源和生命周期的人工反馈，以及 checkpoint 和执行回执。根据公开 PR 试跑中的提交故障加入预算内限次修复，并接入 GitHub 获取、发布预览、版本校验和重复检查；进一步实现固定镜像的 Docker 测试执行和经过版本校验的自动事件入口。原失败三例重放均有效提交，两例观察到截断后修复，真实测试 PR 已完成发布联调。审查质量还需人工复核，云端 Actions 部署还未启用。
+> 项目面向 Python 仓库的 PR 审查。我基于 Deep Agents 实现固定版本输入、相关代码选择、双版本检查和结构化报告。重点做了统一上下文预算、工具事实状态、带来源和生命周期的人工反馈，以及 checkpoint 和执行回执。根据公开 PR 试跑中的提交故障加入预算内限次修复，并接入 GitHub 获取、发布预览、版本校验和重复检查；进一步实现固定镜像的 Docker 测试执行和经过版本校验的自动事件入口。原失败三例重放均有效提交，两例观察到截断后修复，真实测试 PR 已完成发布联调。已在本仓库完成真实 DeepSeek 云端手动预览和 Draft 自动跳过验收，发布保持关闭。审查质量还需人工复核，业务仓库部署和跨 job 存储仍待完成。
 
 这是学习后的讲解模板。亲自完成阅读和练习，再用自己的语言说明承担的设计与改造；SDK 提供的循环、摘要、技能加载和图存储要说清来源。
 
@@ -509,7 +509,7 @@ uv run --env-file .env pr-harness demo --live \
 | 为什么临时目录不够？ | 不能限制宿主文件/网络/进程；Docker 加权限、挂载、网络和资源限制；说明共享内核边界 |
 | 宿主被杀后如何限制测试？ | 容器内可信 PID 1 的截止时间，不只依赖宿主 finally |
 | 自动流程如何选择版本？ | 校验事件仓库与 base/head，再校验获取和发布；只运行可信 Harness 源码 |
-| 当前最明显的问题？ | 遗漏和未确认误报、云端部署与跨 job 存储待验收、尚未验证记忆质量收益 |
+| 当前最明显的问题？ | 遗漏和未确认误报、业务仓库部署与跨 job 存储待验收、尚未验证记忆质量收益 |
 
 ## 12. 源码导航与学习笔记
 
@@ -531,6 +531,7 @@ uv run --env-file .env pr-harness demo --live \
 - [提交可靠性与 GitHub 本次记录](LANDING_V1.md)
 - [Docker 执行与自动审查指南](EXECUTION_AND_AUTOMATION.md)
 - [第二阶段工程验证](LANDING_V2.md)
+- [云端手动预览与 Draft 事件验收](CLOUD_ACCEPTANCE.md)
 
 每次学习后复制这个模板到自己的笔记：
 

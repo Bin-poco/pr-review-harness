@@ -37,7 +37,7 @@ LangGraph SQLite checkpoint 保存消息、StateBackend 文件及 ReviewState。
 
 `SubmissionGuard` 保存提交修复状态，识别截断、缺失提交与无效参数/位置，按剩余预算限次要求重新提交。`github.py` 提供固定版本获取、发布预览、COMMENT 和重复记录检查；GitHub 人工反馈按数字仓库 ID 共享。见 [接入指南](GITHUB_INTEGRATION.md)和[本次运行记录](LANDING_V1.md)。
 
-`ExecutionPolicy` 固定容器镜像和资源/时间/输出限制，纳入恢复身份。`automation.py` 校验事件仓库与版本；Actions 工作流从可信源码运行，仅语法检查，默认预览。Docker 验证和本机真实事件联调已完成，云端部署待启用，见[第二阶段](LANDING_V2.md)。
+`ExecutionPolicy` 固定容器镜像和资源/时间/输出限制，纳入恢复身份。`automation.py` 校验事件仓库与版本；Actions 工作流从可信源码运行，仅语法检查，默认预览。Docker 验证和本机真实事件联调已完成，见[第二阶段](LANDING_V2.md)；本仓库云端手动预览与 Draft 跳过也已完成，见[云端验收](CLOUD_ACCEPTANCE.md)。
 
 ## 有意义的改造目标
 
@@ -49,7 +49,7 @@ LangGraph SQLite checkpoint 保存消息、StateBackend 文件及 ReviewState。
 | 3：进行中 | 真实模型接入、错误分析、策略消融 | 已完成 3 个开发 PR 与 18 个跨仓库 PR 首轮，故障重放完成；还需独立人类复核和重复实验 |
 | 3.1：已实现 | 结构化提交修复与诊断 | 预算/修复耗尽仍明确失败；两例真实截断后完成修复提交 |
 | 4 | 记忆策略：可迁移经验、矛盾/过期记录、反馈撤销 | 历史 PR → 后续 PR 序列，排除答案泄漏，比较开关记忆 |
-| 5：代码已实现，部署待启用 | GitHub 手动链路、事件入口、默认预览工作流、容器执行 | Draft PR 真实发布/查重；Docker 隔离验证；真实模型事件预览；云端 Actions 待验收 |
+| 5：本仓库云端预览已验收 | GitHub 手动链路、事件入口、默认预览工作流、容器执行 | Draft PR 真实发布/查重；Docker 隔离验证；真实模型事件预览；云端手动预览与 Draft 跳过已验收 |
 | 6 | 增量审查与缓存、评测完善 | 缓存按 SHA/模型/规则/记忆版本失效；基线和消融结果可重跑 |
 
 当前版本验证“审查、核验、评估机制可以运行”。默认示例的结论由预设调用器给出，不证明模型效果；模型效果评测计划见 EVALUATION.md。

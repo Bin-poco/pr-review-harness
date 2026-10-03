@@ -139,4 +139,4 @@ CLI 默认保存 `.pr-harness/runs/<run_id>/`；Python API 通过 `runs_dir` 启
 
 `benchmark` 固定 SHA、模型、工具和预算，变更工作状态/记忆开关，保存失败、用量、位置候选指标和空白人工判断。历史反馈需要显式声明，但声明本身无法证明无泄漏，仍需人工审查数据来源。脚本模型只验收链路，不能用于模型质量结论。
 
-在 Python PR Review 范围内，A–D 构成上下文与人工反馈记忆闭环。真实长 PR 的质量、成本、记忆迁移收益需要 E 的模型运行与人工标注。手动 GitHub 链路已完成联调，见 [第一阶段](LANDING_V1.md)；Docker 执行与自动事件入口见[第二阶段](LANDING_V2.md)。云端部署、跨 job 存储、增量审查仍待完成。
+在 Python PR Review 范围内，A–D 构成上下文与人工反馈记忆闭环。真实长 PR 的质量、成本、记忆迁移收益需要 E 的模型运行与人工标注。手动 GitHub 链路已完成联调，见 [第一阶段](LANDING_V1.md)；Docker 执行与自动事件入口见[第二阶段](LANDING_V2.md)。本仓库[云端手动预览与 Draft 跳过](CLOUD_ACCEPTANCE.md)已验收；业务仓库部署、非 Draft 自动审查专项验收、跨 job 存储和增量审查仍待完成。

@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-03T09:19:44+08:00",
+  "purpose": "Cloud engineering acceptance on a synthetic draft PR; not a review quality evaluation.",
+  "harness_repository": "https://github.com/Bin-poco/pr-review-harness",
+  "harness_revision": "ac13e55d4127b36a35e66464933d6734c87d2541",
+  "manual_preview": {
+    "url": "https://github.com/Bin-poco/pr-review-harness/actions/runs/37085323726",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-10-03T01:14:26Z",
+    "updatedAt": "2026-10-03T01:14:54Z",
+    "trusted_checkout_sha": "ac13e55d4127b36a35e66464933d6734c87d2541"
+  },
+  "draft_event": {
+    "url": "https://github.com/Bin-poco/pr-review-harness/actions/runs/37085297132",
+    "event": "pull_request_target",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-10-03T01:14:01Z",
+    "updatedAt": "2026-10-03T01:14:18Z",
+    "automation": {
+      "status": "skipped",
+      "reason": "closed_or_draft"
+    },
+    "trusted_checkout_sha": "ac13e55d4127b36a35e66464933d6734c87d2541"
+  },
+  "reviewed_pr": {
+    "pr": "https://github.com/Bin-poco/pr-review-harness/pull/1",
+    "state": "open",
+    "draft": true,
+    "base_sha": "ac13e55d4127b36a35e66464933d6734c87d2541",
+    "head_sha": "d321aad779953819c92bc3b2ce4f554b0de357f1",
+    "counts": {
+      "reviews": 0,
+      "inline_comments": 0,
+      "issue_comments": 0
+    }
+  },
+  "report": {
+    "run_id": "e3f48c263a514dfd8a48d180d6acb567",
+    "mode": "live",
+    "base_sha": "ac13e55d4127b36a35e66464933d6734c87d2541",
+    "merge_base_sha": "ac13e55d4127b36a35e66464933d6734c87d2541",
+    "head_sha": "d321aad779953819c92bc3b2ce4f554b0de357f1",
+    "model": {
+      "model_name": "deepseek-flash",
+      "openai_api_base": "https://api.deepseek.com",
+      "temperature": 0.0
+    },
+    "tests_enabled": false,
+    "findings": [
+      {
+        "path": "examples/cloud_preview_smoke.py",
+        "line": 6,
+        "severity": "P2",
+        "title": "mean_chunk_score raises ZeroDivisionError on empty input despite documented 0.0 contract",
+        "explanation": "The new function's docstring on line 5 states \"an empty list should produce 0.0\", but the implementation on line 6 computes `sum(scores) / len(scores)`. For an empty list, `len(scores)` is 0, so the division raises `ZeroDivisionError` instead of returning 0.0. The documented contract and the actual behavior disagree, so any caller relying on the stated empty-input behavior will crash. The file is newly added in this PR (base has no such file), so this is a newly introduced defect. No callers or guards exist elsewhere in the repository (grep for `mean_chunk_score` returned no matches), so the function is the sole source of the behavior.",
+        "trigger": "Call `mean_chunk_score([])` (or pass any empty sequence of scores).",
+        "evidence_ids": [
+          "check-001"
+        ],
+        "confidence": "high",
+        "id": "finding-436107b2caead4fa"
+      }
+    ],
+    "verification": {
+      "status": "completed",
+      "verdicts": [
+        {
+          "finding_index": 1,
+          "verdict": "supported",
+          "reason": "Head line 5 docstring promises 0.0 for empty input, but line 6 computes sum(scores)/len(scores), which raises ZeroDivisionError when scores is empty. File is newly added (base absent), so the defect is newly introduced. Trigger mean_chunk_score([]) directly contradicts the documented contract."
+        }
+      ],
+      "unverified_count": 0
+    },
+    "budget_usage": {
+      "model_attempts": 6,
+      "tool_attempts": 9,
+      "unknown_usage_calls": 0,
+      "known_usage": {
+        "input_tokens": 19090,
+        "output_tokens": 1040,
+        "total_tokens": 20130
+      },
+      "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+    },
+    "submission": {
+      "repair_requests": 0,
+      "repair_limit": 2,
+      "outcome": "submitted"
+    },
+    "publication_status": "preview",
+    "automation": {
+      "status": "completed",
+      "publication": "preview",
+      "head_sha": "d321aad779953819c92bc3b2ce4f554b0de357f1",
+      "run_id": "e3f48c263a514dfd8a48d180d6acb567"
+    }
+  },
+  "artifact_sha256": {
+    "automation.json": "221302179f4d3f32cb957b31d8f414e141149d4f7ca20607f00b287899727067",
+    "publication.json": "bf6b1524e596836989742cd917af966f39ee459da3cdf7cce3756b442fcee224",
+    "review.json": "b5015e9dd9c5b3528889ffc579cdf62bd239fb7b91d0bef826915b0df70b7451",
+    "review.md": "f7ef00220633c669ec7b8abb83941aa2f982713049762d1a8a3783123e2d22dd"
+  },
+  "limits": [
+    "Only the manual workflow_dispatch performed a live review; the pull_request_target run verified the Draft skip path.",
+    "Only syntax checks were enabled; no PR tests or install scripts were executed.",
+    "No review or comment was published; automatic publication remains disabled.",
+    "This does not demonstrate review accuracy, memory quality gains, cross-job persistence or deployment in PharosRAG."
+  ]
+}
