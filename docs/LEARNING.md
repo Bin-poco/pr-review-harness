@@ -17,6 +17,7 @@
 | 2 | `snapshot.py::Snapshot` | Git 的 merge-base、提交对象和三点 diff | 为什么读提交而不是工作区？为什么 base 不直接当对比起点？ |
 | 3 | `context_manager.py`、`budget.py` → `context.py` → 读取工具 | `middleware/summarization.py`、`filesystem.py` | 改动符号、调用方和测试怎样关联？完整请求怎样计入系统、技能、schema、记忆和历史？未知窗口怎样降级？ |
 | 4 | `checks.py::CheckRunner` → `validate_findings` | LangChain 工具执行、中间件 wrap_tool_call | 检查失败是否足够？旧问题怎样识别？错误证据 ID 如何拒绝？ |
+| 4.1 | `tool_routing.py` → `list_code_files` → `ReviewToolScope` | 原生 FilesystemMiddleware 的说明覆盖 | 为什么虚拟目录为空不表示仓库为空？错误工具调用怎样计入回执和预算？ |
 | 5 | `state.py`、`review_state.py`、`persistence.py` → `resume` | LangGraph checkpointer、DeltaChannel、`backends/state.py` | 图状态、执行回执、运行锁如何配合？中断后哪些操作可以复用？ |
 | 6 | `memory.py::MemoryStore` → ContextManager | 设计中 Letta/Mem0 的机制参考 | 反馈由谁写？快照如何冻结？主题分组为什么不自动裁决？ |
 | 7 | `skills.py`、两个 `SKILL.md` | Deep Agents `SkillsMiddleware` | 为什么系统提示只展示技能目录？全文何时读取？ |

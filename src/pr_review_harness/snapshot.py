@@ -224,6 +224,11 @@ class Snapshot:
             raise FileNotFoundError(f"No regular file at {path!r} in {version}")
         return entry.size
 
+    def file_paths(self, directory: str = "", version: str = "head") -> tuple[str, ...]:
+        """List regular tracked files under a literal directory at the pinned version."""
+        prefix = _safe_path(directory) + "/" if directory else ""
+        return tuple(sorted(path for path in self._entries(version) if path.startswith(prefix)))
+
     def read_file(self, path: str, version: str = "head") -> str:
         entry = self._entries(version).get(_safe_path(path))
         if entry is None:
