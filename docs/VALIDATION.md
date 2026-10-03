@@ -95,3 +95,14 @@ uv run pr-harness benchmark --cases outputs/context-memory-v3/demo-cases.json \
 - 真实 DeepSeek 主审查与独立核验完成：PharosRAG PR #5 的确认规则展示于全部 4 次主审查请求；第 6 行 P2，核验 supported，7 次模型与 10 次工具尝试。仅生成本地报告，未更新业务云端工作流。
 
 真实案例只有一条已匹配规则，新相关文件规则的激活由工程测试验证。设计、源码顺序及输入边界见 [DYNAMIC_MEMORY.md](DYNAMIC_MEMORY.md)；原始摘要见 [dynamic-memory-20261003.json](validation/dynamic-memory-20261003.json)。没有记忆质量或成本收益结论。
+
+## 统一代码片段索引与实际输入记录（2026-10-03）
+
+- `HARNESS_TEST_DOCKER=1 uv run pytest -q --tb=short`：**267 项通过，98.32 秒**；片段索引专项 17 项。
+- 新增覆盖 merge base/head 与改名旧路径、增删文件、分散邻域、初始裁剪与部分读取、搜索长行、精确片段去重、符号分析上限、索引记录/来源/字节上限、Unicode/CRLF 的 Git 行号、非普通文件元数据，以及回执完成而图未提交时的恢复。
+- 原有真实图压缩测试增加断言：摘要后初始消息不再出现时，展示字符数为 0；片段引用与字面原文分开记录；重建图后索引一致。
+- `uv run ruff check src tests scripts`、修改文件格式检查、`git diff --check` 与文档本地链接检查：通过。
+- 真实 DeepSeek 审查与独立核验完成：PharosRAG PR #5，第 6 行 P3，核验 supported。初始材料、`read_code`、`search_code` 三类来源合并为 3 个片段；3 个完整代码摘要均与固定 Git 版本核对一致，全部 4 次主请求的片段 ID 可追溯且完整请求预算通过，人工规则仍展示于 4/4 次主请求。
+- 7 次模型、10 次工具尝试；已报告输入 27,857、输出 1,213、合计 29,070 tokens。按相同 `--thinking-mode disabled` 配置跨进程恢复，索引、请求、证据、核验与累计用量一致，无新增模型/工具调用。
+
+仅生成本地报告，未发布远程审查或升级业务 Actions 工作流。真实案例为小型新增文件 PR，长历史压缩和部分输出边界由受控测试验证；没有质量、成本或减少重复读取的收益结论。当前索引覆盖主审查，独立核验仍保留独立读取记录。设计与学习顺序见 [CONTEXT_FRAGMENTS.md](CONTEXT_FRAGMENTS.md)，验收摘要见 [context-fragments-20261003.json](validation/context-fragments-20261003.json)。

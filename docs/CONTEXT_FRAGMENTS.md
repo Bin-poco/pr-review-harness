@@ -73,6 +73,8 @@ Python AST 可关联 `Engine.compute` 等类/嵌套函数名称与声明范围�
 
 完成 run 的恢复应保持索引、来源和请求历史一致，模型/工具累计次数不变。回执完成而图未提交时由原有回执重放恢复。实现摘要仍参与 run identity，升级源码后旧 run 不自动迁移；缺少位置元数据的旧结构明确标为未索引。
 
+真实模型恢复需要保持原来的额外模型参数。例如首次使用 `--thinking-mode disabled`，恢复也需传入该选项；当前 CLI 会补回保存的模型名与 Base URL，但不会自动补回 thinking 配置。省略后模型身份不同，恢复被拒绝而不会混用配置。
+
 ## 学习顺序
 
 1. [models.py](../src/pr_review_harness/models.py) 的 `ContextItem` → [context.py](../src/pr_review_harness/context.py) 的 `_Builder.add`：跟踪位置元数据与裁剪展示如何一致。
@@ -96,3 +98,5 @@ uv run pytest -q tests/test_durable_context.py \
 - 能否宣称完整覆盖或减少重复读取？不能；目前提供可追溯位置和本次输入记录，效果需要长 PR 与人工质量实验验证。
 
 工程验收见 [VALIDATION.md](VALIDATION.md)。
+
+本次真实 DeepSeek 运行完成审查、独立核验和跨进程恢复，3 个片段的完整代码摘要均与固定 Git 版本核对一致；恢复保持索引与请求记录不变且没有额外调用。小型 PR 验收只证明工程链路，完整原始摘要见 [context-fragments-20261003.json](validation/context-fragments-20261003.json)。

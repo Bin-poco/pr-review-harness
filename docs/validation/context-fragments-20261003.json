@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-03T04:04:42.676004+00:00",
+  "producer_commit": "035bff6f278c73b331b59e6f6b01b3ac59665d2f",
+  "implementation_sha256": "9b0b09fd014483659c8f10c83eb8d855cc0463dc7bcf754ffbc50386124f5893",
+  "validation_scope": "local primary-review fragment index, post-summary visibility and receipt recovery; one live GitHub/DeepSeek fixture",
+  "engineering": {
+    "command": "HARNESS_TEST_DOCKER=1 uv run pytest -q --tb=short",
+    "passed": 267,
+    "elapsed_seconds": 98.32,
+    "fragment_tests": 17,
+    "ruff_check": "passed",
+    "changed_files_format": "passed",
+    "diff_check": "passed",
+    "covered_risks": [
+      "merge-base/head identity, rename old paths, deleted and new files",
+      "disjoint source ranges exclude omitted gaps",
+      "initial clipping and repository text resembling a clipping marker",
+      "partial reads and long search hits do not claim complete lines",
+      "exact deduplication with separate version identities",
+      "native SDK compaction retains references without claiming literal source",
+      "bounded records, origins, JSON bytes and Python AST metadata",
+      "Git LF locations with Unicode separators and CRLF",
+      "symlink diff metadata excluded from regular code coverage",
+      "completed separate-process resume preserves index, requests and usage",
+      "completed receipt before graph failure replays one read"
+    ]
+  },
+  "live_run": {
+    "run_id": "fragment-index-pharos-01",
+    "model": {
+      "class": "langchain_openai.chat_models.base.ChatOpenAI",
+      "type": "openai-chat",
+      "model_name": "deepseek-flash",
+      "model": "deepseek-flash",
+      "openai_api_base": "https://api.deepseek.com",
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "max_retries": 1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "model_kwargs": {
+        "parallel_tool_calls": false
+      }
+    },
+    "pr_url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+    "repository_id": 1367008779,
+    "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+    "merge_base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "fragment_count": 3,
+    "record_bytes": 1956,
+    "fragment_index_sha256": "4f889d6bfc0bc1c327c4318bc6a4614895ee944598f30e9afe0dd4b87aef9375",
+    "source_kinds": [
+      "initial",
+      "read_code",
+      "search_code"
+    ],
+    "complete_digests_verified_against_git": 3,
+    "omitted_fragments": 0,
+    "omitted_origins": 0,
+    "request_count": 4,
+    "request_visible_counts": [
+      2,
+      2,
+      3,
+      3
+    ],
+    "all_request_ids_resolve": true,
+    "all_requests_within_budget": true,
+    "memory_display_requests": 4,
+    "findings": [
+      {
+        "path": "examples/harness_auto_preview.py",
+        "line": 6,
+        "severity": "P3"
+      }
+    ],
+    "verification_status": "completed",
+    "verdicts": [
+      "supported"
+    ],
+    "model_attempts": 7,
+    "tool_attempts": 10,
+    "known_usage": {
+      "input_tokens": 27857,
+      "output_tokens": 1213,
+      "total_tokens": 29070
+    },
+    "separate_process_resume": {
+      "thinking_mode": "disabled",
+      "index_identical": true,
+      "requests_identical": true,
+      "evidence_and_verification_identical": true,
+      "usage_identical": true,
+      "additional_model_attempts": 0,
+      "additional_tool_attempts": 0
+    },
+    "report_path": "outputs/fragment-index/pharos-01/review.json",
+    "restored_report_path": "outputs/fragment-index/restored/review.json",
+    "published": false
+  },
+  "limitations": [
+    "small new-file live PR; long-context and partial-output boundaries use controlled tests",
+    "request records prove assembled input, not model understanding or successful processing of failed requests",
+    "quality, cost and duplicate-read gains have not been measured",
+    "index covers primary review; verifier maintains separate read records",
+    "business Actions workflow has not been upgraded to this implementation",
+    "CLI resume needs matching extra model parameters; thinking-mode is not automatically restored"
+  ]
+}
