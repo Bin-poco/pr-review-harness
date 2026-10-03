@@ -1,0 +1,360 @@
+{
+  "schema_version": 1,
+  "validated_on": "2026-10-03",
+  "purpose": "Engineering acceptance of independent-stage source provenance and durable recovery; not a review-quality measurement",
+  "producing_source_commit": "38ca4fac353a9dc9564929872cd4bf25b74cc2af",
+  "implementation_sha256": "6a726cb69c6fd994d175fde9c63a3b00e16b73798dee929f52f8bade54e3ea99",
+  "run_id": "verifier-index-pharos-01",
+  "pr_url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+  "snapshot": {
+    "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+    "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+    "merge_base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f"
+  },
+  "model_configuration": {
+    "model_name": "deepseek-flash",
+    "openai_api_base": "https://api.deepseek.com",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    }
+  },
+  "tests": {
+    "full_command": "HARNESS_TEST_DOCKER=1 uv run pytest -q --tb=short",
+    "full_passed": 276,
+    "full_seconds": 131.03,
+    "new_verifier_fragment_tests": 9,
+    "ruff_check": "passed",
+    "changed_python_format": "passed",
+    "diff_check": "passed",
+    "local_document_links": "passed"
+  },
+  "stages": {
+    "review": {
+      "fragment_count": 3,
+      "record_bytes": 1956,
+      "fragment_index_sha256": "ece411995240dcd9e615a7342850a3d33f28e638cdc58a11c5fb2cfacf4ef2dd",
+      "source_kinds": [
+        "initial",
+        "read_code",
+        "search_code"
+      ],
+      "records": [
+        {
+          "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+          "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+          "path": "examples/harness_auto_preview.py",
+          "version": "head",
+          "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+          "line_range": [
+            1,
+            6
+          ],
+          "complete": true,
+          "text_sha256": "4b58a19e6e2f3d2c7211443b03a8ad1ab2c3d3ad29087739871e5d3b2718c554",
+          "symbol_status": "static_python_ast",
+          "symbols": [
+            {
+              "name": "mean_chunk_score",
+              "line_range": [
+                4,
+                6
+              ]
+            }
+          ],
+          "omitted_symbols": 0,
+          "origins": [
+            {
+              "source": "initial",
+              "item": 0,
+              "reason": "PR diff against merge base",
+              "display_range": [
+                195,
+                444
+              ]
+            },
+            {
+              "source": "initial",
+              "item": 1,
+              "reason": "HEAD lines near changed ranges",
+              "display_range": [
+                3,
+                262
+              ]
+            },
+            {
+              "source": "read_code",
+              "event": 0,
+              "display_range": [
+                3,
+                262
+              ]
+            }
+          ]
+        },
+        {
+          "id": "b73154e3f604f1c773ee14a2db4cd163ee6165f253f16d29a1569a1febfad6fa",
+          "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+          "path": "pyproject.toml",
+          "version": "head",
+          "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+          "line_range": [
+            1,
+            45
+          ],
+          "complete": true,
+          "text_sha256": "181136a261ecc41d5df3a8ec67853e2a7ccdddc1606627e42e231fa6a03018dc",
+          "symbol_status": "not_python",
+          "symbols": [],
+          "omitted_symbols": 0,
+          "origins": [
+            {
+              "source": "initial",
+              "item": 2,
+              "reason": "project configuration",
+              "display_range": [
+                0,
+                1717
+              ]
+            }
+          ]
+        },
+        {
+          "id": "17df77129108bc502ccba6de3a84886bab7db61c1071028224a93c5688d63371",
+          "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+          "path": "examples/harness_auto_preview.py",
+          "version": "head",
+          "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+          "line_range": [
+            4,
+            4
+          ],
+          "complete": true,
+          "text_sha256": "90cce40ca629e664f5e5ba1cf234fd2943c77d957015e966a8da3502dc0a6828",
+          "symbol_status": "static_python_ast",
+          "symbols": [
+            {
+              "name": "mean_chunk_score",
+              "line_range": [
+                4,
+                6
+              ]
+            }
+          ],
+          "omitted_symbols": 0,
+          "origins": [
+            {
+              "source": "search_code",
+              "event": 2,
+              "match": 0,
+              "display_range": [
+                0,
+                51
+              ]
+            }
+          ]
+        }
+      ],
+      "complete_code_digests_checked_against_pinned_git": 3,
+      "request_count": 3,
+      "request_index_digests_rebuilt_from_trace_prefix": true,
+      "source_fragments_visible_per_request": [
+        2,
+        2,
+        3
+      ],
+      "initial_source_chars_per_request": [
+        3089,
+        3089,
+        3089
+      ],
+      "full_request_budget_passed": true,
+      "archived_index_does_not_prove_current_input_or_full_review": true
+    },
+    "verification": {
+      "fragment_count": 1,
+      "record_bytes": 683,
+      "fragment_index_sha256": "fdf53d9d559936e5ce4db17379d20c7597341f7ae83c6cad5d048bebb45b7855",
+      "source_kinds": [
+        "initial",
+        "read_code"
+      ],
+      "records": [
+        {
+          "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+          "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+          "path": "examples/harness_auto_preview.py",
+          "version": "head",
+          "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+          "line_range": [
+            1,
+            6
+          ],
+          "complete": true,
+          "text_sha256": "4b58a19e6e2f3d2c7211443b03a8ad1ab2c3d3ad29087739871e5d3b2718c554",
+          "symbol_status": "static_python_ast",
+          "symbols": [
+            {
+              "name": "mean_chunk_score",
+              "line_range": [
+                4,
+                6
+              ]
+            }
+          ],
+          "omitted_symbols": 0,
+          "origins": [
+            {
+              "source": "initial",
+              "item": 0,
+              "reason": "finding 1 diff",
+              "display_range": [
+                195,
+                444
+              ]
+            },
+            {
+              "source": "read_code",
+              "event": 0,
+              "display_range": [
+                3,
+                262
+              ]
+            }
+          ]
+        }
+      ],
+      "complete_code_digests_checked_against_pinned_git": 1,
+      "request_count": 3,
+      "request_index_digests_rebuilt_from_trace_prefix": true,
+      "source_fragments_visible_per_request": [
+        1,
+        1,
+        1
+      ],
+      "initial_source_chars_per_request": [
+        2212,
+        2212,
+        2212
+      ],
+      "full_request_budget_passed": true,
+      "archived_index_does_not_prove_current_input_or_full_review": true
+    }
+  },
+  "human_feedback": {
+    "displayed_per_review_request": [
+      [
+        1
+      ],
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ],
+    "verifier_does_not_inherit_feedback": true
+  },
+  "findings": [
+    {
+      "path": "examples/harness_auto_preview.py",
+      "line": 6,
+      "severity": "P3"
+    }
+  ],
+  "verification": {
+    "status": "completed",
+    "verdicts": [
+      {
+        "finding_index": 1,
+        "verdict": "supported",
+        "reason": "Head line 5 docstring promises 0.0 for empty input, but line 6 `sum(scores) / len(scores)` divides 0/0 and raises ZeroDivisionError for []. File is new (absent at merge base), so the defect is introduced by this PR. Trigger is valid; severity P3 is appropriate for a standalone example fixture."
+      }
+    ],
+    "unavailable_base_paths": [
+      "examples/harness_auto_preview.py"
+    ],
+    "read_receipts": [
+      {
+        "arguments": {
+          "path": "examples/harness_auto_preview.py",
+          "version": "head",
+          "start_line": 1,
+          "end_line": 10
+        },
+        "returned_range": [
+          1,
+          6
+        ],
+        "truncated": false,
+        "failed": false
+      },
+      {
+        "arguments": {
+          "path": "examples/harness_auto_preview.py",
+          "version": "merge-base",
+          "start_line": 1,
+          "end_line": 10
+        },
+        "returned_range": null,
+        "truncated": null,
+        "failed": true
+      },
+      {
+        "arguments": {
+          "path": "examples/harness_auto_preview.py",
+          "version": "base",
+          "start_line": 1,
+          "end_line": 10
+        },
+        "returned_range": null,
+        "truncated": null,
+        "failed": true
+      }
+    ]
+  },
+  "budget_usage": {
+    "model_attempts": 6,
+    "tool_attempts": 9,
+    "unknown_usage_calls": 0,
+    "known_usage": {
+      "input_tokens": 22187,
+      "output_tokens": 1185,
+      "total_tokens": 23372
+    },
+    "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+  },
+  "recovery": {
+    "separate_processes": true,
+    "primary_assembly_equal": true,
+    "verifier_assembly_equal": true,
+    "origins_requests_evidence_findings_verdicts_equal": true,
+    "additional_model_attempts": 0,
+    "additional_tool_attempts": 0,
+    "cumulative_usage_equal": true
+  },
+  "controlled_compaction": {
+    "native_sdk_summary_test": "test_verifier_native_summary_preserves_references_without_claiming_removed_code",
+    "live_small_pr_triggered_compaction": false
+  },
+  "publication": {
+    "local_reports_only": true,
+    "posted_remote_review": false,
+    "business_actions_workflow_upgraded": false
+  },
+  "raw_local_reports": [
+    "outputs/verifier-index/pharos-01/review.json",
+    "outputs/verifier-index/restored/review.json",
+    "outputs/verifier-index/reverified/review.json"
+  ],
+  "limitations": [
+    "Small controlled added-file PR; code in base is absent, two-version present source is tested offline.",
+    "Compaction, partial lines and receipt replay are controlled engineering tests.",
+    "No quality, cost-reduction or duplicate-read-reduction claim.",
+    "Cloud checkpoint recovery and business workflow upgrade remain pending."
+  ]
+}

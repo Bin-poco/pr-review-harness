@@ -117,3 +117,5 @@ uv run pytest -q tests/test_durable_context.py \
 工程验收见 [VALIDATION.md](VALIDATION.md)。
 
 主阶段索引的首次真实 DeepSeek 验收完成审查、独立核验和跨进程恢复，3 个片段的完整代码摘要均与固定 Git 版本核对一致；恢复保持索引与请求记录不变且没有额外调用。该小型 PR 验收只证明工程链路，历史摘要见 [context-fragments-20261003.json](validation/context-fragments-20261003.json)。核验索引的新增验收记录见 [VALIDATION.md](VALIDATION.md)。
+
+核验索引的真实验收完成：主阶段 3 个片段，核验阶段 1 个片段，全部完整代码摘要与固定 Git 版本一致。主阶段与核验在新进程中分别恢复，来源、请求历史和累计用量不变，没有新增调用。此次 base 文件不存在；两版源码均存在、原生压缩和部分返回由新增 9 项专项测试覆盖。详见 [verifier-fragments-20261003.json](validation/verifier-fragments-20261003.json)。

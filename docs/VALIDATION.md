@@ -106,3 +106,16 @@ uv run pr-harness benchmark --cases outputs/context-memory-v3/demo-cases.json \
 - 7 次模型、10 次工具尝试；已报告输入 27,857、输出 1,213、合计 29,070 tokens。按相同 `--thinking-mode disabled` 配置跨进程恢复，索引、请求、证据、核验与累计用量一致，无新增模型/工具调用。
 
 仅生成本地报告，未发布远程审查或升级业务 Actions 工作流。真实案例为小型新增文件 PR，长历史压缩和部分输出边界由受控测试验证；没有质量、成本或减少重复读取的收益结论。当前索引覆盖主审查，独立核验仍保留独立读取记录。设计与学习顺序见 [CONTEXT_FRAGMENTS.md](CONTEXT_FRAGMENTS.md)，验收摘要见 [context-fragments-20261003.json](validation/context-fragments-20261003.json)。
+
+## 独立核验复用片段索引（2026-10-03）
+
+- `HARNESS_TEST_DOCKER=1 uv run pytest -q --tb=short`：**276 项通过，131.03 秒**；新增核验片段专项 9 项。
+- 覆盖候选 diff 的真实位置与裁剪末行、LF/CRLF 和 Unicode 分隔符、读取完整前缀与部分末行、预算提示文字不扩展代码覆盖、阶段来源/反馈隔离、引用整条省略、独立进程恢复，以及核验回执完成而图未提交时的重放。
+- 真实 SDK 压缩测试确认：初始候选材料移出请求后，展示源字符数为 0；源码引用仍可定位历史材料；字面代码输入只由当前真实材料/工具原文决定。
+- `uv run ruff check src tests scripts`、修改 Python 文件格式检查、`git diff --check` 与文档本地链接检查：通过。
+- 真实 DeepSeek 对 PharosRAG PR #5 完成审查与核验：第 6 行 P3，核验 supported。主阶段 3 个片段、3 次请求；核验阶段 1 个片段、3 次请求。两阶段全部 4 个完整代码摘要与固定 Git 版本一致，每次请求的索引摘要都能从当时 trace 前缀重建；人工规则展示于 3/3 次主请求。
+- 6 次模型、9 次工具尝试；已报告输入 22,187、输出 1,185、合计 23,372 tokens。在两个新进程中分别执行主阶段恢复和核验恢复，索引、来源、请求、证据、意见、核验结论与累计用量一致，**没有额外模型或工具调用**。
+
+核验采用相同 FragmentIndex 算法，独立保存 `verification.context`，不会把主审查的读取/反馈变为核验事实；没有新增独立索引数据库。实现与学习顺序见 [CONTEXT_FRAGMENTS.md](CONTEXT_FRAGMENTS.md)，来源代码提交、固定 SHA 与核对结果见 [verifier-fragments-20261003.json](validation/verifier-fragments-20261003.json)。
+
+本次真实案例是小型新增文件 PR，base 文件不存在；两版均存在、长历史压缩与部分返回由受控测试验证。只生成本地报告，业务云端工作流仍使用先前部署版本；云端 checkpoint 恢复尚待完成。没有审查质量、费用或减少重复读取的收益结论。
