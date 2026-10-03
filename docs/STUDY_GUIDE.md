@@ -483,6 +483,8 @@ uv run --env-file .env pr-harness demo --live \
 
 首轮配置由 [FREEZE.json](../evaluation/independent_real_prs/FREEZE.json) 记录。修改源文件后旧 freeze 的当前输入校验会失败，属于预期行为；后续实验应建立新版本记录并保留首轮资料。
 
+最新[云端上下文与记忆升级](CLOUD_CONTEXT_UPGRADE.md)已将本机片段索引部署到业务工作流。对照该次验收摘要，区分工作流所在提交、实际 Harness 源码提交与 PR head；再核对主审查和核验各自的片段来源，以及人工规则是否出现在每次主请求中。云端运行成功与源码来源一致是工程结论，不能推出审查质量改善。
+
 [PharosRAG 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)已完成业务仓库部署与非 Draft 事件审查，可对照 PR #5、Actions 日志和结构化摘要学习跨仓库接入。已验收[跨 job 人工反馈读取](CLOUD_MEMORY.md)；本机增量调度与语法缓存已实现；后续可继续做云端 checkpoint 恢复、队列与跨 job 缓存。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
 
 ### 10.3 执行隔离与自动事件

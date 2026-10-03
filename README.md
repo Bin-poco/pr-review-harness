@@ -107,6 +107,8 @@ uv run --env-file .env pr-harness github-publish \
 
 本项目已发布到 [Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)。首次配置步骤见 [GitHub 上线配置](docs/GITHUB_SETUP.md)。已完成[本仓库云端手动预览](docs/CLOUD_ACCEPTANCE.md)，以及[PharosRAG 业务仓库部署与非 Draft 自动预览](docs/PHAROS_CLOUD_ACCEPTANCE.md)；自动发布保持关闭。
 
+最新[云端上下文与记忆升级](docs/CLOUD_CONTEXT_UPGRADE.md)已部署到 PharosRAG：真实 DeepSeek 主审查与核验分别保存源码片段来源，全部 7 次请求的索引摘要可重建，确认的人工规则展示于 4/4 次主请求。仍为预览模式；云端 checkpoint 恢复是下一项工程工作。
+
 ## 中断后恢复
 
 CLI 默认将每次运行存入 `.pr-harness/runs/<run_id>/`，输出会显示 run_id。可以先固定一个演示身份：

@@ -119,3 +119,13 @@ uv run pr-harness benchmark --cases outputs/context-memory-v3/demo-cases.json \
 核验采用相同 FragmentIndex 算法，独立保存 `verification.context`，不会把主审查的读取/反馈变为核验事实；没有新增独立索引数据库。实现与学习顺序见 [CONTEXT_FRAGMENTS.md](CONTEXT_FRAGMENTS.md)，来源代码提交、固定 SHA 与核对结果见 [verifier-fragments-20261003.json](validation/verifier-fragments-20261003.json)。
 
 本次真实案例是小型新增文件 PR，base 文件不存在；两版均存在、长历史压缩与部分返回由受控测试验证。只生成本地报告，业务云端工作流仍使用先前部署版本；云端 checkpoint 恢复尚待完成。没有审查质量、费用或减少重复读取的收益结论。
+
+## 上下文与记忆能力的云端部署升级（2026-10-03）
+
+- PharosRAG 工作流仅更新 Harness 固定提交：`e12744e…` → `11f34dd…`，远程文件与提案字节及 Git blob 摘要一致。精确提案通过 actionlint；事件入口专项 **13 项通过，2.73 秒**。源码未变，既有 276 项完整回归记录保留，未重新运行全套。
+- [Actions 37118915801](https://github.com/Bin-poco/PharosRAG/actions/runs/37118915801) 手动审查 Draft PR #5，completed / success。实际 checkout 日志和报告实现摘要与审核版本一致；保持 preview，远程三类评论均为 0，PR 未合并。
+- DeepSeek 完成主审查及独立核验：第 6 行 P2，核验 supported。主阶段 3 个片段 / 4 次请求，核验阶段 1 个片段 / 3 次请求；全部完整片段源码摘要与固定 Git 版本一致，最终索引及每次请求的索引摘要均可由各阶段原始材料和当时 trace 前缀重建。
+- 默认分支人工反馈进入冻结候选池，确认规则实际展示于 4/4 次主请求；来源 SHA、文件摘要和 UID 均核对一致。规则原本已匹配变更文件，新相关文件激活的分支仍由工程测试覆盖。
+- 7 次模型、10 次工具尝试，已报告 30,191 tokens，unknown_usage_calls=0；仅做语法检查。核验错误版本参数经工具反馈纠正，错误读取没有产生源码片段。
+
+说明与学习练习见 [CLOUD_CONTEXT_UPGRADE.md](CLOUD_CONTEXT_UPGRADE.md)，长期证据见 [cloud-context-upgrade-20261003.json](validation/cloud-context-upgrade-20261003.json)。本次没有触发原生摘要、验证云端中断恢复或建立质量/费用收益结论。云端 checkpoint 与跨 job 增量缓存仍待接入；上文各阶段本机记录保留原验收边界。

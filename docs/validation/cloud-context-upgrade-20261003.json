@@ -1,0 +1,600 @@
+{
+  "schema_version": 1,
+  "validated_on": "2026-10-03",
+  "purpose": "Cloud engineering acceptance of scoped memory and independent-stage source provenance on a synthetic PR; not a quality or cost measurement",
+  "deployment": {
+    "repository": "Bin-poco/PharosRAG",
+    "commit_sha": "0a267a76e507e555818827897053b6d973f4d772",
+    "commit_url": "https://github.com/Bin-poco/PharosRAG/commit/0a267a76e507e555818827897053b6d973f4d772",
+    "workflow": ".github/workflows/pr-review.yml",
+    "workflow_blob_sha": "dbb937cee29ab884e0184bf0d09c2555e433b796",
+    "previous_harness_sha": "e12744e10440fbf3b3b4779687e0a0de693fbec0",
+    "harness_sha": "11f34dd7c0797b1ef550ea4da642a8e28a0a65f1",
+    "only_source_pin_changed": true,
+    "remote_workflow_matches_proposal": true
+  },
+  "cloud_run": {
+    "databaseId": 37118915801,
+    "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37118915801",
+    "event": "workflow_dispatch",
+    "headSha": "0a267a76e507e555818827897053b6d973f4d772",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-10-03T11:12:26Z",
+    "updatedAt": "2026-10-03T11:12:56Z",
+    "trusted_checkout_repository": "Bin-poco/pr-review-harness",
+    "trusted_checkout_sha": "11f34dd7c0797b1ef550ea4da642a8e28a0a65f1",
+    "checkout_log_checked": true,
+    "artifact_name": "harness-37118915801-1",
+    "artifact_retention_days": 7
+  },
+  "implementation_sha256": "6a726cb69c6fd994d175fde9c63a3b00e16b73798dee929f52f8bade54e3ea99",
+  "snapshot": {
+    "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+    "repository_identity": "github:1367008779",
+    "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+    "merge_base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f"
+  },
+  "report": {
+    "run_id": "d737460d78d04577971a3c39655b7d03",
+    "mode": "live",
+    "model": {
+      "class": "langchain_openai.chat_models.base.ChatOpenAI",
+      "type": "openai-chat",
+      "model_name": "deepseek-flash",
+      "model": "deepseek-flash",
+      "openai_api_base": "https://api.deepseek.com",
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "max_retries": 1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "model_kwargs": {
+        "parallel_tool_calls": false
+      }
+    },
+    "run_tests": false,
+    "incremental_enabled": false,
+    "findings": [
+      {
+        "path": "examples/harness_auto_preview.py",
+        "line": 6,
+        "severity": "P2",
+        "title": "mean_chunk_score raises ZeroDivisionError on empty input despite docstring promising 0.0",
+        "explanation": "The new function's docstring (line 5) explicitly declares the empty-input contract: \"Return the arithmetic mean; an empty list should produce 0.0.\" The implementation on line 6 is `return sum(scores) / len(scores)`, which for `scores == []` evaluates `0 / 0` and raises `ZeroDivisionError` instead of returning `0.0`. The declared behavior and the implementation disagree, so any caller relying on the documented contract (e.g. aggregating scores for a chunk with no matches) gets an unhandled exception rather than the documented 0.0. This is a newly introduced defect: the file is new in this PR (base has no such file, per check-001 base status \"unavailable\"), so there is no prior behavior to compare against. A guard such as `return sum(scores) / len(scores) if scores else 0.0` would satisfy the documented contract. Note the function has no other repository callers (search_code for `mean_chunk_score` returns only this definition), so the impact is limited to the fixture's own documented API, hence P2 rather than P1.",
+        "trigger": "Call `mean_chunk_score([])` (or pass any empty sequence of scores). `sum([])` is 0 and `len([])` is 0, so the division on line 6 raises `ZeroDivisionError: division by zero` instead of returning the documented `0.0`.",
+        "evidence_ids": [
+          "check-001"
+        ],
+        "confidence": "high",
+        "id": "finding-67c10c4822b0a088"
+      }
+    ],
+    "verification_status": "completed",
+    "verdicts": [
+      {
+        "finding_index": 1,
+        "verdict": "supported",
+        "reason": "Head line 5 docstring explicitly promises 0.0 for empty input, but line 6 `return sum(scores) / len(scores)` computes 0/0 and raises ZeroDivisionError for []. File is new in this PR (base has no such file), so the defect is newly introduced. Trigger and code match the claim exactly."
+      }
+    ],
+    "budget_usage": {
+      "model_attempts": 7,
+      "tool_attempts": 10,
+      "unknown_usage_calls": 0,
+      "known_usage": {
+        "input_tokens": 28838,
+        "output_tokens": 1353,
+        "total_tokens": 30191
+      },
+      "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+    },
+    "submission_repair_requests": 0,
+    "publication_status": "preview"
+  },
+  "stages": {
+    "review": {
+      "fragment_count": 3,
+      "fragment_index_sha256": "4f889d6bfc0bc1c327c4318bc6a4614895ee944598f30e9afe0dd4b87aef9375",
+      "source_kinds": [
+        "initial",
+        "read_code",
+        "search_code"
+      ],
+      "records": [
+        {
+          "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+          "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+          "path": "examples/harness_auto_preview.py",
+          "version": "head",
+          "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+          "line_range": [
+            1,
+            6
+          ],
+          "complete": true,
+          "text_sha256": "4b58a19e6e2f3d2c7211443b03a8ad1ab2c3d3ad29087739871e5d3b2718c554",
+          "symbol_status": "static_python_ast",
+          "symbols": [
+            {
+              "name": "mean_chunk_score",
+              "line_range": [
+                4,
+                6
+              ]
+            }
+          ],
+          "omitted_symbols": 0,
+          "origins": [
+            {
+              "source": "initial",
+              "item": 0,
+              "reason": "PR diff against merge base",
+              "display_range": [
+                195,
+                444
+              ]
+            },
+            {
+              "source": "initial",
+              "item": 1,
+              "reason": "HEAD lines near changed ranges",
+              "display_range": [
+                3,
+                262
+              ]
+            },
+            {
+              "source": "read_code",
+              "event": 2,
+              "display_range": [
+                3,
+                262
+              ]
+            }
+          ]
+        },
+        {
+          "id": "b73154e3f604f1c773ee14a2db4cd163ee6165f253f16d29a1569a1febfad6fa",
+          "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+          "path": "pyproject.toml",
+          "version": "head",
+          "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+          "line_range": [
+            1,
+            45
+          ],
+          "complete": true,
+          "text_sha256": "181136a261ecc41d5df3a8ec67853e2a7ccdddc1606627e42e231fa6a03018dc",
+          "symbol_status": "not_python",
+          "symbols": [],
+          "omitted_symbols": 0,
+          "origins": [
+            {
+              "source": "initial",
+              "item": 2,
+              "reason": "project configuration",
+              "display_range": [
+                0,
+                1717
+              ]
+            }
+          ]
+        },
+        {
+          "id": "17df77129108bc502ccba6de3a84886bab7db61c1071028224a93c5688d63371",
+          "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+          "path": "examples/harness_auto_preview.py",
+          "version": "head",
+          "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+          "line_range": [
+            4,
+            4
+          ],
+          "complete": true,
+          "text_sha256": "90cce40ca629e664f5e5ba1cf234fd2943c77d957015e966a8da3502dc0a6828",
+          "symbol_status": "static_python_ast",
+          "symbols": [
+            {
+              "name": "mean_chunk_score",
+              "line_range": [
+                4,
+                6
+              ]
+            }
+          ],
+          "omitted_symbols": 0,
+          "origins": [
+            {
+              "source": "search_code",
+              "event": 3,
+              "match": 0,
+              "display_range": [
+                0,
+                51
+              ]
+            }
+          ]
+        }
+      ],
+      "request_count": 4,
+      "requests": [
+        {
+          "stage": "review",
+          "size": 19005,
+          "limit": 120000,
+          "fragment_trace_events": 0,
+          "fragment_index_sha256": "a3d283790cb093d0634c162b2cbffd7a755013a43becf31e07bf58d583832822",
+          "initial_display_present": true,
+          "initial_display_chars": 3089,
+          "initial_source_chars": 3089,
+          "source_fragments": [
+            {
+              "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+              "complete_ranges": [
+                [
+                  1,
+                  6
+                ]
+              ],
+              "partial_ranges": []
+            },
+            {
+              "id": "b73154e3f604f1c773ee14a2db4cd163ee6165f253f16d29a1569a1febfad6fa",
+              "complete_ranges": [
+                [
+                  1,
+                  45
+                ]
+              ],
+              "partial_ranges": []
+            }
+          ]
+        },
+        {
+          "stage": "review",
+          "size": 22680,
+          "limit": 120000,
+          "fragment_trace_events": 2,
+          "fragment_index_sha256": "a3d283790cb093d0634c162b2cbffd7a755013a43becf31e07bf58d583832822",
+          "initial_display_present": true,
+          "initial_display_chars": 3089,
+          "initial_source_chars": 3089,
+          "source_fragments": [
+            {
+              "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+              "complete_ranges": [
+                [
+                  1,
+                  6
+                ]
+              ],
+              "partial_ranges": []
+            },
+            {
+              "id": "b73154e3f604f1c773ee14a2db4cd163ee6165f253f16d29a1569a1febfad6fa",
+              "complete_ranges": [
+                [
+                  1,
+                  45
+                ]
+              ],
+              "partial_ranges": []
+            }
+          ]
+        },
+        {
+          "stage": "review",
+          "size": 25422,
+          "limit": 120000,
+          "fragment_trace_events": 4,
+          "fragment_index_sha256": "4f889d6bfc0bc1c327c4318bc6a4614895ee944598f30e9afe0dd4b87aef9375",
+          "initial_display_present": true,
+          "initial_display_chars": 3089,
+          "initial_source_chars": 3089,
+          "source_fragments": [
+            {
+              "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+              "complete_ranges": [
+                [
+                  1,
+                  6
+                ]
+              ],
+              "partial_ranges": []
+            },
+            {
+              "id": "b73154e3f604f1c773ee14a2db4cd163ee6165f253f16d29a1569a1febfad6fa",
+              "complete_ranges": [
+                [
+                  1,
+                  45
+                ]
+              ],
+              "partial_ranges": []
+            },
+            {
+              "id": "17df77129108bc502ccba6de3a84886bab7db61c1071028224a93c5688d63371",
+              "complete_ranges": [
+                [
+                  4,
+                  4
+                ]
+              ],
+              "partial_ranges": []
+            }
+          ]
+        },
+        {
+          "stage": "review",
+          "size": 27497,
+          "limit": 120000,
+          "fragment_trace_events": 5,
+          "fragment_index_sha256": "4f889d6bfc0bc1c327c4318bc6a4614895ee944598f30e9afe0dd4b87aef9375",
+          "initial_display_present": true,
+          "initial_display_chars": 3089,
+          "initial_source_chars": 3089,
+          "source_fragments": [
+            {
+              "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+              "complete_ranges": [
+                [
+                  1,
+                  6
+                ]
+              ],
+              "partial_ranges": []
+            },
+            {
+              "id": "b73154e3f604f1c773ee14a2db4cd163ee6165f253f16d29a1569a1febfad6fa",
+              "complete_ranges": [
+                [
+                  1,
+                  45
+                ]
+              ],
+              "partial_ranges": []
+            },
+            {
+              "id": "17df77129108bc502ccba6de3a84886bab7db61c1071028224a93c5688d63371",
+              "complete_ranges": [
+                [
+                  4,
+                  4
+                ]
+              ],
+              "partial_ranges": []
+            }
+          ]
+        }
+      ],
+      "final_index_rebuilt": true,
+      "request_prefix_digests_rebuilt": true,
+      "complete_excerpt_digests_checked": 3,
+      "request_fragment_ranges_checked": true
+    },
+    "verification": {
+      "fragment_count": 1,
+      "fragment_index_sha256": "fdf53d9d559936e5ce4db17379d20c7597341f7ae83c6cad5d048bebb45b7855",
+      "source_kinds": [
+        "initial",
+        "read_code"
+      ],
+      "records": [
+        {
+          "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+          "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+          "path": "examples/harness_auto_preview.py",
+          "version": "head",
+          "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+          "line_range": [
+            1,
+            6
+          ],
+          "complete": true,
+          "text_sha256": "4b58a19e6e2f3d2c7211443b03a8ad1ab2c3d3ad29087739871e5d3b2718c554",
+          "symbol_status": "static_python_ast",
+          "symbols": [
+            {
+              "name": "mean_chunk_score",
+              "line_range": [
+                4,
+                6
+              ]
+            }
+          ],
+          "omitted_symbols": 0,
+          "origins": [
+            {
+              "source": "initial",
+              "item": 0,
+              "reason": "finding 1 diff",
+              "display_range": [
+                195,
+                444
+              ]
+            },
+            {
+              "source": "read_code",
+              "event": 0,
+              "display_range": [
+                3,
+                262
+              ]
+            }
+          ]
+        }
+      ],
+      "request_count": 3,
+      "requests": [
+        {
+          "stage": "verification",
+          "size": 5435,
+          "limit": 120000,
+          "fragment_trace_events": 0,
+          "fragment_index_sha256": "6e0aca5c75181e411240a7de62e49f2a94e29595e4ba7dd04dd7ce853fd65b4d",
+          "initial_display_present": true,
+          "initial_display_chars": 2500,
+          "initial_source_chars": 2500,
+          "source_fragments": [
+            {
+              "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+              "complete_ranges": [
+                [
+                  1,
+                  6
+                ]
+              ],
+              "partial_ranges": []
+            }
+          ]
+        },
+        {
+          "stage": "verification",
+          "size": 7654,
+          "limit": 120000,
+          "fragment_trace_events": 2,
+          "fragment_index_sha256": "fdf53d9d559936e5ce4db17379d20c7597341f7ae83c6cad5d048bebb45b7855",
+          "initial_display_present": true,
+          "initial_display_chars": 2500,
+          "initial_source_chars": 2500,
+          "source_fragments": [
+            {
+              "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+              "complete_ranges": [
+                [
+                  1,
+                  6
+                ]
+              ],
+              "partial_ranges": []
+            }
+          ]
+        },
+        {
+          "stage": "verification",
+          "size": 8992,
+          "limit": 120000,
+          "fragment_trace_events": 3,
+          "fragment_index_sha256": "fdf53d9d559936e5ce4db17379d20c7597341f7ae83c6cad5d048bebb45b7855",
+          "initial_display_present": true,
+          "initial_display_chars": 2500,
+          "initial_source_chars": 2500,
+          "source_fragments": [
+            {
+              "id": "cad9bd6b368823a8e077a19b140d3f57a8c2580d48a81b54463c9f9298c3deea",
+              "complete_ranges": [
+                [
+                  1,
+                  6
+                ]
+              ],
+              "partial_ranges": []
+            }
+          ]
+        }
+      ],
+      "final_index_rebuilt": true,
+      "request_prefix_digests_rebuilt": true,
+      "complete_excerpt_digests_checked": 1,
+      "request_fragment_ranges_checked": true
+    }
+  },
+  "memory": {
+    "source": {
+      "kind": "github-default-branch",
+      "repository_id": 1367008779,
+      "repository": "Bin-poco/PharosRAG",
+      "branch": "main",
+      "commit_sha": "0a267a76e507e555818827897053b6d973f4d772",
+      "path": ".harness/feedback.json",
+      "blob_sha": "35c23d0389e9aca4daaa9c4c17d571afcd00c940",
+      "file_sha256": "63c521e3576ce8ad504b3010449c3085757d944d414f53c1365230c0f4cf4122",
+      "bundle_sha256": "2b060fd8ba846f13a7bb83cd5f22497d5521e80530f8d53d1d9cb2a24e18539e",
+      "record_count": 1
+    },
+    "candidate_pool_sha256": "9b63d44676fef009058debb22e07385fa762d1410fdf573a66fc991247062df5",
+    "candidate_pool_count": 1,
+    "record_uid": "e2ec47adf4d64cd4b5239218a593e45a",
+    "request_count": 4,
+    "displayed_in_requests": 4,
+    "activation_reasons_by_request": [
+      [
+        {
+          "path": "examples/harness_auto_preview.py",
+          "reason": "changed-path match"
+        }
+      ],
+      [
+        {
+          "path": "examples/harness_auto_preview.py",
+          "reason": "changed-path match"
+        }
+      ],
+      [
+        {
+          "path": "examples/harness_auto_preview.py",
+          "reason": "search_code match"
+        }
+      ],
+      [
+        {
+          "path": "examples/harness_auto_preview.py",
+          "reason": "search_code match"
+        }
+      ]
+    ],
+    "new_related_file_rule_activation_demonstrated": false
+  },
+  "remote_after": {
+    "baseRefOid": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "headRefOid": "80eb69da95f03d3e84a2b3905b887180269110ed",
+    "isDraft": true,
+    "mergedAt": null,
+    "state": "OPEN",
+    "url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+    "counts": {
+      "reviews": 0,
+      "inline_comments": 0,
+      "issue_comments": 0
+    }
+  },
+  "checks": {
+    "actionlint": "passed on exact proposal",
+    "automation_tests": {
+      "passed": 13,
+      "seconds": 2.73
+    },
+    "source_unchanged": true,
+    "previous_full_regression": {
+      "passed": 276,
+      "seconds": 131.03,
+      "docker_enabled": true,
+      "record": "verifier-fragments-20261003.json",
+      "rerun_this_upgrade": false
+    },
+    "artifact_log_credential_scan": "passed; checked local key values and common credential formats"
+  },
+  "artifact_sha256": {
+    "automation.json": "db7feb46f21cfb1f36a744e2b526f96f996682586d8ce2523ec1aa3079f57ea9",
+    "memory-source.json": "c1ff0e60ff13f0dabc32342957abd30fa2a8a18dfb072dd5a1d68381bfe7a311",
+    "publication.json": "f94a5b068b84ac1e7ec95d908b26c682e19393c2905060e86a3db969bcf3517a",
+    "review.json": "b674f434eb92f8799881101eea5e90cc072bc4b234d773c845d8ae60d30d5912",
+    "review.md": "58176d18c1591bb21c16670f93760bd471ad0c28f9a539b036ca9e2158353446"
+  },
+  "workflow_sha256": "ae4a7d01f1751fd15103aa9d0cf3d066deb1717efe0c2ac0f7ca8032830583a1",
+  "run_log_sha256": "2abbb85d4ab1be2e861756f14cd4c93405692f70c1a9e04d7c4b77d3e9804829",
+  "local_raw_path": "outputs/cloud-context-upgrade/",
+  "limitations": [
+    "Manual workflow_dispatch preview; the earlier non-Draft automatic event has separate historical evidence",
+    "No PR tests or install scripts executed; compilation does not demonstrate the runtime exception",
+    "No cloud checkpoint recovery or cross-job incremental cache deployed",
+    "No native summary triggered in this small case; controlled tests cover compression and partial source boundaries",
+    "One rule already matched the changed file; newly discovered related-file activation is covered by offline tests",
+    "Independent verification is another model opinion; no accuracy, token saving or cost improvement established"
+  ]
+}
