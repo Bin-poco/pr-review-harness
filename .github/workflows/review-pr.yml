@@ -9,17 +9,29 @@ on:
         description: PR number in this repository (manual runs may review drafts)
         required: true
         type: string
+      resume_run_id:
+        description: Optional completed Actions run to recover (checkpoint mode only)
+        type: string
+      resume_attempt:
+        description: Source attempt number
+        type: string
+        default: '1'
+      pause_after_review:
+        description: Save primary review before verification for recovery validation
+        type: boolean
+        default: false
 
 # Opt in after installing this workflow on the trusted default branch.
 # The harness repository must contain the source and uv.lock. For another
 # business repository, generate its caller with `scripts/install_workflow.py`.
 permissions:
   contents: read
+  actions: read
   pull-requests: write
 
 concurrency:
   group: harness-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pr_number }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ vars.HARNESS_CHECKPOINT_ENABLED != 'true' }}
 
 jobs:
   review:
@@ -48,16 +60,36 @@ jobs:
           HARNESS_BASE_URL: ${{ vars.HARNESS_BASE_URL || 'https://api.deepseek.com' }}
           HARNESS_CI_PUBLISH: ${{ vars.HARNESS_PUBLISH || 'false' }}
           HARNESS_CI_MEMORY: ${{ vars.HARNESS_MEMORY_ENABLED || 'false' }}
+          HARNESS_CI_CHECKPOINT: ${{ vars.HARNESS_CHECKPOINT_ENABLED || 'false' }}
+          HARNESS_CI_RESUME_RUN: ${{ inputs.resume_run_id || '' }}
+          HARNESS_CI_RESUME_ATTEMPT: ${{ inputs.resume_attempt || '1' }}
+          HARNESS_CI_PAUSE: ${{ inputs.pause_after_review || false }}
         shell: bash
         run: |
           args=()
           if [ "$HARNESS_CI_PUBLISH" = 'true' ]; then args+=(--send); fi
           if [ "$HARNESS_CI_MEMORY" = 'true' ]; then args+=(--github-memory); fi
-          uv run --frozen --no-dev pr-harness github-ci \
+          if [ "$HARNESS_CI_CHECKPOINT" = 'true' ]; then args+=(--cloud-checkpoint); fi
+          if [ -n "$HARNESS_CI_RESUME_RUN" ]; then
+            args+=(--resume-run-id "$HARNESS_CI_RESUME_RUN" --resume-attempt "$HARNESS_CI_RESUME_ATTEMPT")
+          fi
+          if [ "$HARNESS_CI_PAUSE" = 'true' ]; then args+=(--pause-after-review); fi
+          timeout --signal=TERM --kill-after=15s 8m uv run --frozen --no-dev pr-harness github-ci \
             --event-file "$GITHUB_EVENT_PATH" \
             --repository "$GITHUB_REPOSITORY" \
             --thinking-mode disabled --verify \
             --out outputs/ci "${args[@]}"
+      - name: Snapshot stopped review state
+        if: always() && vars.HARNESS_CHECKPOINT_ENABLED == 'true'
+        run: uv run --frozen --no-dev pr-harness cloud-export
+      - name: Save resumable state
+        if: always() && vars.HARNESS_CHECKPOINT_ENABLED == 'true' && hashFiles('outputs/state/checkpoint.zip') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: harness-state-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/state/checkpoint.zip
+          if-no-files-found: error
+          retention-days: 7
       - name: Save review and diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

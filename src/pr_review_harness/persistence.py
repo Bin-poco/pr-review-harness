@@ -8,6 +8,7 @@ import re
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import asdict
+from importlib.metadata import version
 from pathlib import Path
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -83,6 +84,26 @@ def model_identity(model):
     return value
 
 
+def runner_identity():
+    """Require compatible Python/dependencies, without binding to a runner's kernel build."""
+    return {
+        "python": platform.python_version(),
+        "system": platform.system(),
+        "machine": platform.machine(),
+        "dependencies": {
+            name: version(name)
+            for name in (
+                "deepagents",
+                "langgraph",
+                "langgraph-checkpoint",
+                "langgraph-checkpoint-sqlite",
+                "langchain-core",
+                "langchain-openai",
+            )
+        },
+    }
+
+
 def identity(snapshot, model, policy, strategy, run_tests, mode, execution=None):
     source = Path(__file__).parent
     return {
@@ -103,7 +124,7 @@ def identity(snapshot, model, policy, strategy, run_tests, mode, execution=None)
         "implementation_sha256": digest(
             {p.name: p.read_text() for p in sorted(source.glob("*.py"))}
         ),
-        "runner": {"python": platform.python_version(), "platform": platform.platform()},
+        "runner": runner_identity(),
     }
 
 

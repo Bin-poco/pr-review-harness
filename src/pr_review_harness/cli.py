@@ -4,12 +4,22 @@ import argparse
 import json
 import os
 import sys
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
 from pr_review_harness.automation import parse_event
 from pr_review_harness.benchmark import run_benchmark
 from pr_review_harness.budget import DEFAULT_POLICY, BudgetPolicy
+from pr_review_harness.cloud_state import (
+    CloudContext,
+    download_checkpoint,
+    export_checkpoint,
+    restore_checkpoint,
+    resume_selection,
+    state_profile,
+    write_pointer,
+)
 from pr_review_harness.context import build_context
 from pr_review_harness.demo import create_demo
 from pr_review_harness.evaluation import evaluate_report, load_gold
@@ -17,7 +27,7 @@ from pr_review_harness.execution import ExecutionPolicy
 from pr_review_harness.github import PRRef, configured_client, fetch_snapshot, publish_report
 from pr_review_harness.memory import MemoryStore
 from pr_review_harness.memory_bundle import DEFAULT_MEMORY_PATH, load_github_memory, read_bundle
-from pr_review_harness.persistence import RunStore, atomic_json
+from pr_review_harness.persistence import RunStore, atomic_json, identity
 from pr_review_harness.report import write_report
 from pr_review_harness.runtime import DemoChatModel, ReviewFailure, review
 from pr_review_harness.snapshot import Snapshot
@@ -56,9 +66,26 @@ def parser() -> argparse.ArgumentParser:
     ci.add_argument("--cache-dir", type=Path, default=Path(".pr-harness/github"))
     ci.add_argument("--send", action="store_true", help="Opt in to automatic COMMENT publication")
     ci.add_argument("--publications-dir", type=Path, default=Path(".pr-harness/publications"))
+    ci.add_argument(
+        "--cloud-checkpoint", action="store_true", help="Prepare a resumable Actions state artifact"
+    )
+    ci.add_argument(
+        "--resume-run-id", help="Recover state from a trusted Actions run in this repository"
+    )
+    ci.add_argument("--resume-attempt", default="1", help="Source Actions attempt (default: 1)")
+    ci.add_argument(
+        "--pause-after-review",
+        action="store_true",
+        help="Save the primary review before running verification; fresh runs only",
+    )
     _review_arguments(ci, remote=True)
     _budget_arguments(ci)
     _model_arguments(ci)
+    cloud_export = commands.add_parser(
+        "cloud-export", help="Snapshot a stopped CI run, including committed SQLite WAL pages"
+    )
+    cloud_export.add_argument("--pointer", type=Path, default=Path("outputs/ci/cloud-run.json"))
+    cloud_export.add_argument("--out", type=Path, default=Path("outputs/state/checkpoint.zip"))
     for command in (github, ci):
         command.add_argument(
             "--github-memory",
@@ -356,13 +383,23 @@ def main() -> int:
         failure_path.write_text(json.dumps(exc.partial, ensure_ascii=False, indent=2))
         print(f"Review failed: {exc}. Partial evidence: {failure_path.resolve()}", file=sys.stderr)
         return 1
-    except (ValueError, OSError, RuntimeError) as exc:
+    except (ValueError, OSError, RuntimeError, zipfile.BadZipFile) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
 
 def _dispatch(arguments) -> int:
     event = None
+    cloud = None
+    selection = None
+    if arguments.command == "cloud-export":
+        repository = os.getenv("GITHUB_REPOSITORY", "")
+        repository_id = int(os.getenv("GITHUB_REPOSITORY_ID", "0"))
+        cloud = CloudContext.from_environment(repository, repository_id)
+        result = export_checkpoint(arguments.pointer, arguments.out, cloud)
+        atomic_json(arguments.pointer.parent / "checkpoint-export.json", result)
+        print(f"Cloud checkpoint: {result['status']}")
+        return 0
     if arguments.command == "github-ci":
         if arguments.run_tests:
             raise ValueError("Credential-bearing GitHub CI permits syntax checks only")
@@ -384,6 +421,19 @@ def _dispatch(arguments) -> int:
             print(f"Automation skipped: {event.skip_reason}")
             return 0
         arguments.pr = event.ref.url
+        if (
+            arguments.resume_run_id or arguments.pause_after_review
+        ) and not arguments.cloud_checkpoint:
+            raise ValueError("Cloud recovery or pausing requires --cloud-checkpoint")
+        if arguments.cloud_checkpoint:
+            if arguments.send or arguments.incremental:
+                raise ValueError(
+                    "Cloud recovery currently supports preview without incremental caching"
+                )
+            cloud = CloudContext.from_environment(arguments.repository, event.repository_id)
+            selection = resume_selection(cloud, arguments.resume_run_id, arguments.resume_attempt)
+            if arguments.pause_after_review and not arguments.verify:
+                raise ValueError("Pausing after review requires a requested verification stage")
     if arguments.command == "github-fetch":
         snapshot, source = fetch_snapshot(
             PRRef.parse(arguments.pr), configured_client(), arguments.cache_dir
@@ -623,17 +673,59 @@ def _dispatch(arguments) -> int:
         raise ValueError("Use 1–10 verifier findings.")
     if not 1 <= arguments.verify_model_calls <= 50 or not 1 <= arguments.verify_tool_calls <= 100:
         raise ValueError("Use 1–50 verifier model calls and 1–100 verifier tool calls.")
-    store = MemoryStore(arguments.memory_db)
-    if source and arguments.github_memory:
-        receipt = load_github_memory(
-            snapshot, source, configured_client(), store, path=arguments.github_memory_path
-        )
-        atomic_json(arguments.out / "memory-source.json", receipt)
+    if not selection:
+        store = MemoryStore(arguments.memory_db)
+        if source and arguments.github_memory:
+            receipt = load_github_memory(
+                snapshot, source, configured_client(), store, path=arguments.github_memory_path
+            )
+            atomic_json(arguments.out / "memory-source.json", receipt)
     model = _live_model(arguments)
     policy = _policy(arguments, model)
-    memory = store.freeze_snapshot(
-        snapshot.repo_id, [item.path for item in snapshot.changed_files], policy.memory_chars
-    )
+    restored_from = None
+    if selection:
+        bundle, origin = download_checkpoint(configured_client(), cloud, selection)
+        expected = {
+            **identity(snapshot, model, policy, arguments.context_strategy, False, "live"),
+            "incremental": {"enabled": False},
+        }
+        saved, restored_from = restore_checkpoint(
+            bundle,
+            arguments.runs_dir,
+            cloud,
+            origin,
+            snapshot,
+            expected,
+            state_profile(arguments),
+            source,
+        )
+        arguments.run_id = saved["run_id"]
+        # Titles may change; retain the original source object and the original frozen feedback.
+        source = saved["source"]
+        memory = ""
+        _, artifacts = RunStore(arguments.runs_dir, arguments.run_id).load()
+        origin = artifacts["memory"].get("storage", {}).get("origin")
+        if origin:
+            atomic_json(
+                arguments.out / "memory-source.json", {**origin, "restored_frozen_snapshot": True}
+            )
+    else:
+        memory = store.freeze_snapshot(
+            snapshot.repo_id, [item.path for item in snapshot.changed_files], policy.memory_chars
+        )
+        if cloud:
+            if arguments.run_id:
+                raise ValueError("Cloud runs assign their own stable run identity")
+            arguments.run_id = f"ci-{cloud.run_id}-{cloud.attempt}"
+    if cloud:
+        write_pointer(
+            arguments.out / "cloud-run.json",
+            cloud,
+            arguments.runs_dir,
+            arguments.run_id,
+            state_profile(arguments),
+            restored_from,
+        )
     report = review(
         snapshot,
         model,
@@ -641,6 +733,7 @@ def _dispatch(arguments) -> int:
         budget=policy,
         runs_dir=arguments.runs_dir,
         run_id=arguments.run_id,
+        resume=bool(selection),
         run_tests=arguments.run_tests,
         execution=_execution_policy(arguments),
         context_chars=arguments.context_chars,
@@ -653,6 +746,19 @@ def _dispatch(arguments) -> int:
         review_key=arguments.review_key,
     )
     paths = write_report(report, arguments.out)
+    if cloud and arguments.pause_after_review and not selection:
+        atomic_json(
+            arguments.out / "automation.json",
+            {
+                "status": "paused",
+                "stage": "before_verification",
+                "run_id": report["run_id"],
+                "head_sha": report["head_sha"],
+                "publication": "not_requested",
+            },
+        )
+        print(f"Primary review saved: {report['run_id']}; verification awaits recovery")
+        return 0
     if arguments.verify:
         report = verify_report(
             snapshot,
@@ -684,6 +790,7 @@ def _dispatch(arguments) -> int:
                 "publication": publication["status"],
                 "head_sha": report["head_sha"],
                 "run_id": report["run_id"],
+                **({"restored_from": restored_from} if restored_from else {}),
             },
         )
     return 0
