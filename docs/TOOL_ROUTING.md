@@ -39,3 +39,29 @@
 测试入口：[test_tool_routing.py](../tests/test_tool_routing.py)。覆盖固定版本、merge base、重命名、非代码文件、未跟踪文件、符号链接、分页与预算、错误目录纠正，以及实际图循环中的技能/记忆/笔记和中断恢复。SDK 原生摘要与卸载恢复由 [test_durable_context.py](../tests/test_durable_context.py) 继续验证。
 
 这个改动解决工具可发现性和返回范围的问题。模型调用、token 或漏报改善需要同版本输入的重复对照实验；一轮演示不能证明质量或成本提升。
+
+## 2026-10-03 验收
+
+本机完整测试 **216 passed，76.32 秒**，启用 Docker 测试；Ruff、改动文件格式与 actionlint 检查通过。强制误用与中断恢复由预设模型驱动真实图循环验证，不计作模型效果数据。
+
+已上传 Harness [`e12744e10440fbf3b3b4779687e0a0de693fbec0`](https://github.com/Bin-poco/pr-review-harness/commit/e12744e10440fbf3b3b4779687e0a0de693fbec0)，业务仓库通过 [`a0c71175e25bab1523a933deb7594f9b6ebf663e`](https://github.com/Bin-poco/PharosRAG/commit/a0c71175e25bab1523a933deb7594f9b6ebf663e) 固定使用该版本。实际检出日志及报告的实现摘要与本机源码一致。
+
+| [PharosRAG #5 云端预览](https://github.com/Bin-poco/PharosRAG/actions/runs/37090635524) | 结果 |
+| --- | --- |
+| workflow / review run | `37090635524` / `35fa99a517594465a635233b9de83559` |
+| 状态 / job 时间（含安装与上传） | success / 28 秒 |
+| 模型 | DeepSeek 官方 `deepseek-flash`，关闭思考模式 |
+| 主审查模型请求 | 4 次 |
+| 合法虚拟读取 | 2 次 `read_file`，加载两个技能 |
+| 仓库文件发现 | `list_code_files(directory="examples", limit=100)`，只返回演示文件；SHA 对应固定 head |
+| 仓库文字搜索 | `search_code("mean_chunk_score")` |
+| 虚拟仓库导航 / 误用纠正 | 本轮均为 0；云端本轮没有触发纠正分支 |
+| 人工规则实际展示 | 4 / 4 次主审查请求，未截断，相同反馈 UID |
+| 结果 / 独立核验 | 第 6 行 1 条 P2 / completed，supported |
+| 主审查与核验累计尝试 | 模型 7 次，工具 10 次；提交修复 0 次 |
+| 已报告 input / output tokens | 26,707 / 1,208 |
+| 发布与 PR 状态 | preview；仍为开放 Draft，未合并；reviews、行内评论、普通评论均为 0 |
+
+云端继续只做语法检查。源码已经在初始上下文提供，主 Agent 本轮不必再次调用 `read_code`。语法检查并未复现空输入异常，逻辑意见由源码推理产生，第二轮模型重新读取后给出支持判断。
+
+结构化记录与五个产物的 SHA256 见 [tool-routing-20261003.json](validation/tool-routing-20261003.json)。当前启用变量为 `HARNESS_ENABLED=true`、`HARNESS_MEMORY_ENABLED=true`、`HARNESS_PUBLISH=false`。本轮表明工具列表、技能读取、人工反馈与云端链路兼容；同一个小型演示 PR 的单轮运行不能证明降低成本或提高准确率。

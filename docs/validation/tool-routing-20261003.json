@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "purpose": "Verify repository tool discovery and native virtual storage routing in a real cloud preview.",
+  "harness_repository": "Bin-poco/pr-review-harness",
+  "harness_commit": "e12744e10440fbf3b3b4779687e0a0de693fbec0",
+  "business_repository": "Bin-poco/PharosRAG",
+  "business_commit": "a0c71175e25bab1523a933deb7594f9b6ebf663e",
+  "pr_url": "https://github.com/Bin-poco/PharosRAG/pull/5",
+  "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+  "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+  "local_verification": {
+    "pytest_passed": 216,
+    "pytest_seconds": 76.32,
+    "docker_enabled": true,
+    "ruff": "passed",
+    "changed_file_format": "passed",
+    "actionlint": "passed"
+  },
+  "cloud": {
+    "github_run_id": 37090635524,
+    "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37090635524",
+    "job_id": 111110036506,
+    "event": "workflow_dispatch",
+    "conclusion": "success",
+    "job_started_at": "2026-10-03T02:40:54Z",
+    "job_completed_at": "2026-10-03T02:41:22Z",
+    "job_elapsed_seconds": 28,
+    "review_run_id": "35fa99a517594465a635233b9de83559",
+    "mode": "live",
+    "resumed": false,
+    "implementation_sha256": "744db428e0be82c344546fd629f8aa43926883231ac9dc93e2f8a4b117343769",
+    "model": {
+      "class": "langchain_openai.chat_models.base.ChatOpenAI",
+      "type": "openai-chat",
+      "model_name": "deepseek-flash",
+      "model": "deepseek-flash",
+      "openai_api_base": "https://api.deepseek.com",
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "max_retries": 1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "model_kwargs": {
+        "parallel_tool_calls": false
+      }
+    },
+    "tool_routing": {
+      "schema_version": 1,
+      "repository_read_calls": 2,
+      "virtual_read_calls": 2,
+      "redirected_virtual_calls": 0,
+      "repository_tools": [
+        "list_code_files",
+        "read_code",
+        "search_code"
+      ],
+      "virtual_tools": [
+        "glob",
+        "grep",
+        "ls",
+        "read_file"
+      ]
+    },
+    "main_trace": [
+      {
+        "tool": "read_file",
+        "arguments": {
+          "file_path": "/skills/review/python-boundary-regressions/SKILL.md",
+          "limit": 1000
+        }
+      },
+      {
+        "tool": "read_file",
+        "arguments": {
+          "file_path": "/skills/review/python-api-compatibility/SKILL.md",
+          "limit": 1000
+        }
+      },
+      {
+        "tool": "list_code_files",
+        "arguments": {
+          "directory": "examples",
+          "version": "head",
+          "offset": 0,
+          "limit": 100
+        }
+      },
+      {
+        "tool": "search_code",
+        "arguments": {
+          "query": "mean_chunk_score"
+        }
+      },
+      {
+        "tool": "run_check",
+        "arguments": {
+          "kind": "syntax",
+          "path": "examples/harness_auto_preview.py"
+        }
+      },
+      {
+        "tool": "submit_review",
+        "arguments": {
+          "finding_count": 1
+        }
+      }
+    ],
+    "repository_listing": {
+      "scope": "git_repository",
+      "version": "head",
+      "sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+      "directory": "examples",
+      "offset": 0,
+      "paths": [
+        "examples/harness_auto_preview.py"
+      ],
+      "total": 1,
+      "truncated": false,
+      "next_offset": null
+    },
+    "memory_source": {
+      "kind": "github-default-branch",
+      "repository_id": 1367008779,
+      "repository": "Bin-poco/PharosRAG",
+      "branch": "main",
+      "commit_sha": "a0c71175e25bab1523a933deb7594f9b6ebf663e",
+      "path": ".harness/feedback.json",
+      "blob_sha": "35c23d0389e9aca4daaa9c4c17d571afcd00c940",
+      "file_sha256": "63c521e3576ce8ad504b3010449c3085757d944d414f53c1365230c0f4cf4122",
+      "bundle_sha256": "2b060fd8ba846f13a7bb83cd5f22497d5521e80530f8d53d1d9cb2a24e18539e",
+      "record_count": 1
+    },
+    "memory_uid": "e2ec47adf4d64cd4b5239218a593e45a",
+    "memory_snapshot_sha256": "d06d64cbf7d79677cbb1118bc3e3bc3b16f2a8ab76e3c2eda11ebc8b730abbd4",
+    "main_model_requests": 4,
+    "main_model_requests_displaying_rule": 4,
+    "findings": [
+      {
+        "path": "examples/harness_auto_preview.py",
+        "line": 6,
+        "severity": "P2"
+      }
+    ],
+    "verification_status": "completed",
+    "verification_verdicts": [
+      "supported"
+    ],
+    "submission_repairs": 0,
+    "budget_usage": {
+      "model_attempts": 7,
+      "tool_attempts": 10,
+      "unknown_usage_calls": 0,
+      "known_usage": {
+        "input_tokens": 26707,
+        "output_tokens": 1208,
+        "total_tokens": 27915
+      },
+      "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+    },
+    "publication_status": "preview",
+    "run_tests": false,
+    "artifact_sha256": {
+      "memory-source.json": "e8d398e6b52630a6a98bf99a9056077eaa250659973be49e88c697b3555e587c",
+      "automation.json": "3331cf2a244153aeaf6b6ad0b6a0c43952b300a12cc864f72122aad8c064b7ee",
+      "publication.json": "5f47597f22f3af88a089d36c06cc875bac8fd3c52aff4eb8783e1c5ba1455c73",
+      "review.md": "0493e831cf5a5f44d415f43fcabef0bfb3cd6aaab3c49211b9f4731be8f57068",
+      "review.json": "0ace414a7206de7c55906177f0c6d646978964ef1303d955cc70384a2e11d458"
+    }
+  },
+  "remote_configuration": {
+    "HARNESS_ENABLED": "true",
+    "HARNESS_MEMORY_ENABLED": "true",
+    "HARNESS_PUBLISH": "false",
+    "HARNESS_MODEL": "deepseek-flash",
+    "HARNESS_BASE_URL": "https://api.deepseek.com"
+  },
+  "checks": {
+    "implementation_matches_local_source": true,
+    "checkout_commit_matches_pin": true,
+    "repository_inventory_used": true,
+    "no_virtual_repository_navigation": true,
+    "all_main_requests_display_confirmed_rule": true,
+    "request_budgets_satisfied": true,
+    "artifact_credential_scan": "no matches for local credential or checked token formats",
+    "pr_state": {
+      "state": "open",
+      "draft": true,
+      "merged": false
+    },
+    "reviews": 0,
+    "inline_comments": 0,
+    "issue_comments": 0
+  },
+  "limits": [
+    "One small synthetic PR preview verifies integration, not cost or quality improvement.",
+    "Wrong-path correction and crash recovery verified locally with scripted graph callers.",
+    "Cloud workflow executes syntax checks only; verifier remains a model judgment."
+  ]
+}
