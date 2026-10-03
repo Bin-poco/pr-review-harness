@@ -88,7 +88,7 @@ uv run --env-file .env pr-harness github-review \
 3. `github-ci` 从事件文件解析数字仓库 ID、PR 编号、base/head；PR 标题和分支名不拼入运行命令。
 4. 获取 PR 后确认事件版本；旧事件不调用模型、不发布。报告发布前再次验证远程版本。
 5. 默认独立核验并保存发布预览。核验阶段失败不会发布。
-6. 同一 PR 使用一个 concurrency group，新事件取消旧 job；job 最长 15 分钟；成功报告或失败诊断保存为 7 天 artifact。
+6. 同一 PR 使用一个 concurrency group，默认新事件取消旧 job；开启 checkpoint 后不主动取消正在运行的 job，审查进程上限 8 分钟，为导出留出时间；job 最长 15 分钟；成功报告或失败诊断保存为 7 天 artifact。
 
 默认工作流只有在仓库变量 `HARNESS_ENABLED=true` 时运行。源码仓库为 [Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)，工作流在可信默认分支 `main`；首次云端使用需要按 [配置指南](GITHUB_SETUP.md) 设置：
 
@@ -100,8 +100,9 @@ uv run --env-file .env pr-harness github-review \
 | Variable `HARNESS_BASE_URL` | 默认 `https://api.deepseek.com` |
 | Variable `HARNESS_PUBLISH` | 默认 `false`；改成 `true` 才自动发送 COMMENT |
 | Variable `HARNESS_MEMORY_ENABLED` | 默认 `false`；完成[反馈文件配置](CLOUD_MEMORY.md)后开启 |
+| Variable `HARNESS_CHECKPOINT_ENABLED` | 默认 `false`；开启可信状态归档与新运行恢复，仅预览 |
 
-`GITHUB_TOKEN` 由 GitHub 提供，权限为 contents:read、pull-requests:write。这里写权限用于可选发布；不自动 approve、请求修改、合并 PR 或写长期记忆。开启自动发布会通知贡献者，应由仓库维护者明确配置。
+`GITHUB_TOKEN` 由 GitHub 提供，权限为 contents:read、actions:read、pull-requests:write。这里写权限用于可选发布；不自动 approve、请求修改、合并 PR 或写长期记忆。开启自动发布会通知贡献者，应由仓库维护者明确配置。
 
 本机模拟事件入口：
 
@@ -140,10 +141,10 @@ uv run python scripts/install_workflow.py \
 ## 5. 恢复、记忆与上线边界
 
 - 本机 Docker 运行继续使用 checkpoint/执行回执，完成后恢复不重跑已知检查。未知检查仍需要明确 `--retry-unknown`。
-- GitHub hosted runner 每个 job 是新环境。当前不会自动恢复被取消的图。人工反馈可以从默认分支的版本化 JSON 导入每个 job 的 SQLite；配置与版本追溯见[跨次记忆](CLOUD_MEMORY.md)。发布可通过远程标记查重。
+- GitHub hosted runner 每个 job 是新环境。开启 checkpoint 可在进程停止后归档图与回执，再由新的 Run workflow 指定来源恢复；硬取消仍不保证归档成功，直接 Re-run 可能删除来源 artifact，详见[云端恢复](CLOUD_RECOVERY.md)。人工反馈可以从默认分支的版本化 JSON 导入每个 job 的 SQLite；配置与版本追溯见[跨次记忆](CLOUD_MEMORY.md)。发布可通过远程标记查重。
 - 工作流不使用模型/仓库材料构建的共享缓存；AST/记忆消融仍沿用本机评测入口。
 - Actions concurrency 只限制该工作流的同一 PR；跨机器手动同时首次发布仍没有分布式锁。
-- 业务仓库自动预览已验收。下一步完善增量审查、云端 checkpoint 恢复、队列与审查质量。
+- 业务仓库自动预览已验收。云端预览 checkpoint 恢复已验收；下一步完善跨 job 增量缓存、队列与审查质量。
 
 ## 6. 学习与面试练习
 

@@ -76,8 +76,28 @@ uv run pytest -q tests/test_cloud_state.py
 
 专项使用真实 LangGraph 图和 SQLite：主模型在检查完成后失败，恢复不重复检查；核验回执已提交但图未提交，恢复重放该回执；已完成两阶段恢复不增加调用；记忆数据库删除后仍使用原冻结反馈。其他测试覆盖 WAL、运行锁、PR/配置/环境失配、成员篡改、来源伪造和下载凭证隔离。
 
-2026-10-03 本机完整回归 **311 项通过，137.82 秒，包含 Docker**；新增恢复专项 35 项。修正普通入口反馈加载顺序后，记忆、自动入口与云端恢复联合专项 78 项通过。
+2026-10-03 最终版本本机完整回归 **311 项通过，140.01 秒，包含 Docker**；新增恢复专项 35 项。修正普通入口反馈加载顺序后，记忆、自动入口与云端恢复联合专项 78 项通过。
 
 面试自检：为什么不能只保存 `review.json`？为什么需要 SQLite backup？为什么不能下载任意 PR artifact 后直接恢复？为什么更换 runner 不清零预算？为什么“always 上传”仍不能保证强制取消后的恢复？
 
 GitHub 行为依据：[Artifacts REST API](https://docs.github.com/en/rest/actions/artifacts)、[Workflow runs REST API](https://docs.github.com/en/rest/actions/workflow-runs)、[下载工作流 artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)。
+
+## 7. 真实云端验收（2026-10-03）
+
+PharosRAG 默认分支部署 `483609e8e592c8caa02a35e91bb0bd55ee3467d4`，固定 Harness `e15893bdc6dc4cad4d67e1e12d98261dc47a9758`；远程工作流与提案字节一致，精确提案通过 actionlint。`HARNESS_CHECKPOINT_ENABLED=true`、`HARNESS_PUBLISH=false`、`HARNESS_MEMORY_ENABLED=true`。
+
+目标是同一个人工构造的 [Draft PR #5](https://github.com/Bin-poco/PharosRAG/pull/5)，使用真实 DeepSeek `deepseek-flash`、关闭 thinking。三个独立 Actions run 均成功：
+
+| 运行 | 操作与结果 | 累计模型 / 工具尝试 |
+| --- | --- | --- |
+| [37128501642](https://github.com/Bin-poco/PharosRAG/actions/runs/37128501642) | 主审查完成，核验前暂停，上传状态 | 4 / 7 |
+| [37128615856](https://github.com/Bin-poco/PharosRAG/actions/runs/37128615856) | 新运行指定上一来源；复用主审查，只继续核验，生成预览 | 7 / 11 |
+| [37128744336](https://github.com/Bin-poco/PharosRAG/actions/runs/37128744336) | 新运行指定已完成来源；主审查和核验均恢复，无新增调用 | 7 / 11 |
+
+原 Harness run ID `ci-37128501642-1` 贯穿三次运行。意见、证据、主阶段消息/请求/片段索引及冻结反馈一致；后两次的核验结论、请求/索引和完整执行回执一致，仅当前恢复耗时允许变化。来源归档摘要、每个内部文件摘要、实际源码 checkout 与实现摘要均已核对。
+
+主阶段 3 个源码片段、4 次请求；核验阶段 1 个片段、3 次请求。完整源码摘要与固定 Git 对象一致，各请求的索引摘要可由 trace 前缀重建。确认规则仍出现在 4/4 次主请求，恢复不重新导入反馈来改变输入。共 7 次模型、11 次工具尝试，已报告 29,822 tokens，用量未知为 0；不代表提供方隐藏重试或精确费用保证。
+
+PR 保持 Draft、未合并；远程审查、行内意见和普通评论均为 0。检查 47 个日志/状态文件及归档内部成员，未发现本机已知密钥或常见凭证格式。结构化证据见 [cloud-recovery-20261003.json](validation/cloud-recovery-20261003.json)，原始文件仅保存于本机 `outputs/cloud-recovery/`，云端 artifact 保留 7 天。
+
+这次云端验证采用主审查完成后的受控暂停；正在执行时的模型失败和工具回执中断由离线真实图测试覆盖。实际 Re-run 失败被保留为工程发现，并据此修正入口；不声称已支持直接 Re-run 恢复、硬取消恢复、自动发布或生产 SLA。小型新增文件 PR 的核验仍是模型意见，不能据此推导准确率或成本改善。

@@ -120,4 +120,4 @@ uv run pytest -q tests/test_durable_context.py \
 
 核验索引的真实验收完成：主阶段 3 个片段，核验阶段 1 个片段，全部完整代码摘要与固定 Git 版本一致。主阶段与核验在新进程中分别恢复，来源、请求历史和累计用量不变，没有新增调用。此次 base 文件不存在；两版源码均存在、原生压缩和部分返回由新增 9 项专项测试覆盖。详见 [verifier-fragments-20261003.json](validation/verifier-fragments-20261003.json)。
 
-此版本已部署到 PharosRAG 并完成[云端升级验收](CLOUD_CONTEXT_UPGRADE.md)：主阶段 3 个片段 / 4 次请求，核验阶段 1 个片段 / 3 次请求；最终索引与各请求 trace 前缀的摘要均可从固定 Git 对象和本阶段回执重建。云端仍为预览，跨 job checkpoint 恢复尚未实现。
+此版本已部署到 PharosRAG 并完成[云端升级验收](CLOUD_CONTEXT_UPGRADE.md)：主阶段 3 个片段 / 4 次请求，核验阶段 1 个片段 / 3 次请求；最终索引与各请求 trace 前缀的摘要均可从固定 Git 对象和本阶段回执重建。该次升级时跨 job checkpoint 恢复尚未实现；后续已完成[可信状态归档与跨 job 恢复](CLOUD_RECOVERY.md)，仍保持预览。

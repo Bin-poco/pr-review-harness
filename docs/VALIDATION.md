@@ -129,3 +129,13 @@ uv run pr-harness benchmark --cases outputs/context-memory-v3/demo-cases.json \
 - 7 次模型、10 次工具尝试，已报告 30,191 tokens，unknown_usage_calls=0；仅做语法检查。核验错误版本参数经工具反馈纠正，错误读取没有产生源码片段。
 
 说明与学习练习见 [CLOUD_CONTEXT_UPGRADE.md](CLOUD_CONTEXT_UPGRADE.md)，长期证据见 [cloud-context-upgrade-20261003.json](validation/cloud-context-upgrade-20261003.json)。本次没有触发原生摘要、验证云端中断恢复或建立质量/费用收益结论。云端 checkpoint 与跨 job 增量缓存仍待接入；上文各阶段本机记录保留原验收边界。
+
+## 云端 checkpoint 保存与恢复（2026-10-03）
+
+- 最终源码 `e15893bdc6dc4cad4d67e1e12d98261dc47a9758`，`HARNESS_TEST_DOCKER=1 uv run pytest -q --tb=short`：**311 项通过，140.01 秒**；新增云端专项 35 项。
+- 真实图测试覆盖模型在完成检查后失败、核验回执提交而图尚未提交、完成结果恢复不新增调用、删除记忆数据库后仍保留原快照、WAL 页面备份、活动 run 锁、身份/预算失配、归档篡改、工作流来源与下载凭证隔离。普通运行反馈加载顺序的回归已修复，联合专项 78 项通过。
+- `ruff check src tests scripts`、修改 Python 格式检查、`git diff --check` 与精确工作流提案 actionlint 通过。
+- PharosRAG 固定最终源码，开启 checkpoint、保留预览模式。三次独立运行 **37128501642 → 37128615856 → 37128744336**：主审查核验前暂停并归档（4 模型/7 工具）→ 新运行复用主审查并继续核验（7/11）→ 新运行恢复完整结果（仍为 7/11，新增调用 0/0）。
+- 贯穿相同 Harness run ID；主审查意见、证据、消息、完整上下文与冻结人工规则一致；后两次核验与执行回执一致（当前恢复耗时除外）。成员摘要、实际源码 checkout、全部 7 次请求的片段索引与固定代码摘要已核对；47 个日志/状态文件及内部成员凭证扫描通过。PR 保持 Draft 未合并，远程评论/审查均为 0。
+
+真实 Re-run 发现上一 attempt artifact 消失，导致首次自动恢复设计失败；据此改成**新建 Run workflow 并指定来源**，明确拒绝直接 Re-run。云端采用阶段边界的受控暂停，正在执行时的故障由离线图测试覆盖；没有硬取消恢复、自动发布、跨 job 检查缓存或质量/成本收益结论。完整设计、操作与平台发现见 [CLOUD_RECOVERY.md](CLOUD_RECOVERY.md)，长期证据见 [cloud-recovery-20261003.json](validation/cloud-recovery-20261003.json)。

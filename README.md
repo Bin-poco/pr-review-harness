@@ -11,7 +11,7 @@
 | 上下文 | diff、变更邻域、配置；AST 关联调用方与测试；统一代码片段索引与每次实际输入记录；ContextManager 组装、预算校验；每轮刷新版本/证据与有限片段引用 |
 | 证据与执行 | Python 语法检查；可选 unittest；双版本对照；Docker 固定镜像、无网络、只读与资源/日志/时间上限 |
 | 记忆 | SQLite 持久保存人工反馈；按仓库、路径范围、有效期筛选；支持修订/撤销/替换历史、run/finding 来源、主题分组及冻结快照；版本化 JSON 支持云端跨 job 读取 |
-| 持久恢复 | LangGraph SQLite checkpoint 保存消息、临时文件与事实状态；执行回执保存检查结果与累计用量；固定版本 resume |
+| 持久恢复 | LangGraph SQLite checkpoint 保存消息、临时文件与事实状态；执行回执保存检查结果与累计用量；固定版本 resume；云端可信状态归档与显式来源恢复 |
 | 提交可靠性 | 输出截断、无提交、参数与校验错误的预算内限次修复；保留原始输出与失败诊断 |
 | GitHub 发布 | 默认本地预览，显式发布 COMMENT 与行内意见；版本校验、本地回执、远程标记去重 |
 | 自动审查 | Actions 工作流与事件入口；可信源码、事件版本校验、同 PR 并发取消、默认预览；云端手动预览与 Draft 跳过已验收 |
@@ -22,7 +22,7 @@
 | 本地评估 | 将保存的报告与固定版本人工标注比较，输出位置命中候选指标、遗漏、重复和证据诊断；四组上下文/记忆消融入口 |
 | 报告 | Markdown + JSON；head 行号、证据 ID、版本信息、工具轨迹、用量与耗时 |
 
-**当前是可运行的工程原型。** GitHub 手动发布、Docker 执行和自动审查入口已实现；Actions 工作流经静态检查、事件入口经本机真实模型联调，并完成[云端手动预览与 Draft 事件跳过验收](docs/CLOUD_ACCEPTANCE.md)。已通过两次独立云端运行验收[版本化人工反馈的跨 job 读取](docs/CLOUD_MEMORY.md)，本机增量调度与语法缓存已实现；云端 checkpoint 恢复、跨 job 缓存和部署运维仍待完成。已完成 [3 个 Click PR 开发案例](evaluation/click_real_prs/FIRST_RUN.md)和 [18 个跨仓库公开 PR 的封存试跑](evaluation/independent_real_prs/FIRST_RUN.md)。原试跑中 36 次审查有 3 次未能提交有效结果，本次[故障重放](docs/LANDING_V1.md)三例均完成，其中两例观察到截断后的修复提交。位置命中与误报仍需逐条根因复核，不能作为准确率结论。AST 关联是静态启发式，记忆检索采用确定性筛选；第二轮核验也只是模型意见，不能替代人工判断。
+**当前是可运行的工程原型。** GitHub 手动发布、Docker 执行和自动审查入口已实现；Actions 工作流经静态检查、事件入口经本机真实模型联调，并完成[云端手动预览与 Draft 事件跳过验收](docs/CLOUD_ACCEPTANCE.md)。已通过两次独立云端运行验收[版本化人工反馈的跨 job 读取](docs/CLOUD_MEMORY.md)，本机增量调度与语法缓存已实现；[云端 checkpoint 保存与恢复](docs/CLOUD_RECOVERY.md)已通过三次独立运行验收；跨 job 缓存和部署运维仍待完成。已完成 [3 个 Click PR 开发案例](evaluation/click_real_prs/FIRST_RUN.md)和 [18 个跨仓库公开 PR 的封存试跑](evaluation/independent_real_prs/FIRST_RUN.md)。原试跑中 36 次审查有 3 次未能提交有效结果，本次[故障重放](docs/LANDING_V1.md)三例均完成，其中两例观察到截断后的修复提交。位置命中与误报仍需逐条根因复核，不能作为准确率结论。AST 关联是静态启发式，记忆检索采用确定性筛选；第二轮核验也只是模型意见，不能替代人工判断。
 
 ## 运行示例
 
@@ -107,7 +107,7 @@ uv run --env-file .env pr-harness github-publish \
 
 本项目已发布到 [Bin-poco/pr-review-harness](https://github.com/Bin-poco/pr-review-harness)。首次配置步骤见 [GitHub 上线配置](docs/GITHUB_SETUP.md)。已完成[本仓库云端手动预览](docs/CLOUD_ACCEPTANCE.md)，以及[PharosRAG 业务仓库部署与非 Draft 自动预览](docs/PHAROS_CLOUD_ACCEPTANCE.md)；自动发布保持关闭。
 
-最新[云端上下文与记忆升级](docs/CLOUD_CONTEXT_UPGRADE.md)已部署到 PharosRAG：真实 DeepSeek 主审查与核验分别保存源码片段来源，全部 7 次请求的索引摘要可重建，确认的人工规则展示于 4/4 次主请求。仍为预览模式；云端 checkpoint 恢复是下一项工程工作。
+最新[云端上下文与记忆升级](docs/CLOUD_CONTEXT_UPGRADE.md)已部署到 PharosRAG：真实 DeepSeek 主审查与核验分别保存源码片段来源，全部 7 次请求的索引摘要可重建，确认的人工规则展示于 4/4 次主请求。后续[云端恢复](docs/CLOUD_RECOVERY.md)已验收：主审查暂停后跨 job 继续核验，恢复完整结果无新增模型或工具调用。仍为预览模式。
 
 ## 中断后恢复
 
@@ -122,6 +122,8 @@ uv run pr-harness verify --report outputs/restored-01/review.json --out outputs/
 `resume` 恢复主审查，`verify` 启动或恢复核验。已完成阶段不会再次调用模型或执行检查。运行绑定 repo、SHA、模型配置、预算、技能与实现摘要、执行环境；这些变化需开始新 run。当次人工记忆已冻结，即使数据库随后修订，也不会改写旧 run 输入。
 
 工具执行前先保存意图，完成后保存结果。中断留下意图但没有结果时标记 `execution_unknown`，添加 `--retry-unknown` 才允许重新执行；它不能保证外部调用恰好执行一次。JSON/Markdown 报告原子替换。运行目录含仓库材料与反馈；执行锁当前面向 macOS/Linux。
+
+GitHub Actions 开启 `HARNESS_CHECKPOINT_ENABLED=true` 后保存可信状态 artifact。恢复需新建 **Run workflow**，填写来源 `resume_run_id`；不要点击来源运行的 Re-run，它可能删除旧 artifact。详见[云端操作与限制](docs/CLOUD_RECOVERY.md)。
 
 ## 用人工标注检查结果
 
@@ -184,6 +186,7 @@ uv run pr-harness memory feedback --repo /你的/仓库 \
 - [公开仓库配置与首次云端预览](docs/GITHUB_SETUP.md)
 - [真实云端预览与 Draft 事件验收](docs/CLOUD_ACCEPTANCE.md)
 - [跨次云端人工反馈记忆与维护步骤](docs/CLOUD_MEMORY.md)
+- [云端状态归档、来源校验、恢复与真实验收](docs/CLOUD_RECOVERY.md)
 - [审查过程中按文件召回反馈、预算与恢复](docs/DYNAMIC_MEMORY.md)
 - [PR 更新后的增量调度、检查缓存与源码学习](docs/INCREMENTAL_REVIEW.md)
 - [提交可靠性与落地第一阶段记录](docs/LANDING_V1.md)
@@ -200,6 +203,6 @@ uv run pytest
 uv run ruff check src tests
 ```
 
-统一设计 A–D 已实现，E 的四组实验入口已实现；跨仓库试点已封存并完成首轮运行，提交修复、手动 GitHub 接入、Docker 执行与自动入口已实现。独立人工审查和规划的 24 例正式评测集仍待完成。本仓库云端手动预览、PharosRAG 部署与非 Draft 自动预览均已验收，人工确认反馈的跨 job 读取也已完成两轮验收。接下来完善云端 checkpoint 恢复与跨 job 缓存，同时完成重复运行、根因复核和固定预算消融，再形成有数据支撑的简历表述。
+统一设计 A–D 已实现，E 的四组实验入口已实现；跨仓库试点已封存并完成首轮运行，提交修复、手动 GitHub 接入、Docker 执行与自动入口已实现。独立人工审查和规划的 24 例正式评测集仍待完成。本仓库云端手动预览、PharosRAG 部署与非 Draft 自动预览均已验收，人工确认反馈的跨 job 读取也已完成两轮验收。云端 checkpoint 恢复已通过受控暂停、继续核验与完成结果恢复验收；接下来完善跨 job 缓存，同时完成重复运行、根因复核和固定预算消融，再形成有数据支撑的简历表述。
 
 设计参考：[Anthropic 上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[长任务 Harness 的生成与评估分工](https://www.anthropic.com/engineering/harness-design-long-running-apps)、[Agent 评估](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)及 [Deep Agents Skills 文档](https://docs.langchain.com/oss/python/deepagents/skills)。这些资料提供设计思路，项目效果仍需自身数据验证。

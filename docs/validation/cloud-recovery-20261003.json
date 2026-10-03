@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "validated_on": "2026-10-03",
+  "purpose": "Cloud checkpoint engineering acceptance on a synthetic controlled PR; not a review quality experiment",
+  "deployment": {
+    "repository": "Bin-poco/PharosRAG",
+    "commit_sha": "483609e8e592c8caa02a35e91bb0bd55ee3467d4",
+    "harness_sha": "e15893bdc6dc4cad4d67e1e12d98261dc47a9758",
+    "workflow_blob_sha": "74b37a15b2872db0e914ffd38a72419b9a4ab27b",
+    "remote_matches_proposal": true,
+    "checkpoint_enabled": true,
+    "publish_enabled": false
+  },
+  "implementation_sha256": "bf492d4b9d684865c0397f6022998e3798a5bc76dbd31c0f9da3783509f72a52",
+  "snapshot": {
+    "repo_id": "7d97a1df22075237fe07b9660dd998dcd605f1f1d7ac42db3ca832c646e5790e",
+    "repository_identity": "github:1367008779",
+    "base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f",
+    "head_sha": "80eb69da95f03d3e84a2b3905b887180269110ed",
+    "merge_base_sha": "40136cea7cac09b3b9306f87ce9a3b69b1a2410f"
+  },
+  "harness_run_id": "ci-37128501642-1",
+  "model": {
+    "class": "langchain_openai.chat_models.base.ChatOpenAI",
+    "type": "openai-chat",
+    "model_name": "deepseek-flash",
+    "model": "deepseek-flash",
+    "openai_api_base": "https://api.deepseek.com",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "max_retries": 1,
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "model_kwargs": {
+      "parallel_tool_calls": false
+    }
+  },
+  "runner": {
+    "python": "3.12.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "dependencies": {
+      "deepagents": "0.7.21",
+      "langgraph": "1.2.12",
+      "langgraph-checkpoint": "4.2.0",
+      "langgraph-checkpoint-sqlite": "3.1.1",
+      "langchain-core": "1.6.6",
+      "langchain-openai": "1.6.7"
+    }
+  },
+  "actions": {
+    "paused": {
+      "id": 37128501642,
+      "run_attempt": 1,
+      "event": "workflow_dispatch",
+      "head_sha": "483609e8e592c8caa02a35e91bb0bd55ee3467d4",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37128501642",
+      "state_artifact": "harness-state-37128501642-1",
+      "budget_usage": {
+        "model_attempts": 4,
+        "tool_attempts": 7,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 23311,
+          "output_tokens": 899,
+          "total_tokens": 24210
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "restored_from": null
+    },
+    "recovered": {
+      "id": 37128615856,
+      "run_attempt": 1,
+      "event": "workflow_dispatch",
+      "head_sha": "483609e8e592c8caa02a35e91bb0bd55ee3467d4",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37128615856",
+      "state_artifact": "harness-state-37128615856-1",
+      "budget_usage": {
+        "model_attempts": 7,
+        "tool_attempts": 11,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 28537,
+          "output_tokens": 1285,
+          "total_tokens": 29822
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "restored_from": {
+        "run_id": 37128501642,
+        "attempt": 1,
+        "event": "workflow_dispatch",
+        "head_sha": "483609e8e592c8caa02a35e91bb0bd55ee3467d4",
+        "artifact_id": 11274574851,
+        "artifact_digest": "sha256:f9cd6f16423a94d43db4c779e3ead535675a4c3e2862115a1bea67747f775be9",
+        "harness_run_id": "ci-37128501642-1",
+        "budget_usage": {
+          "model_attempts": 4,
+          "tool_attempts": 7,
+          "unknown_usage_calls": 0,
+          "known_usage": {
+            "input_tokens": 23311,
+            "output_tokens": 899,
+            "total_tokens": 24210
+          },
+          "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+        }
+      }
+    },
+    "completed": {
+      "id": 37128744336,
+      "run_attempt": 1,
+      "event": "workflow_dispatch",
+      "head_sha": "483609e8e592c8caa02a35e91bb0bd55ee3467d4",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37128744336",
+      "state_artifact": "harness-state-37128744336-1",
+      "budget_usage": {
+        "model_attempts": 7,
+        "tool_attempts": 11,
+        "unknown_usage_calls": 0,
+        "known_usage": {
+          "input_tokens": 28537,
+          "output_tokens": 1285,
+          "total_tokens": 29822
+        },
+        "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+      },
+      "restored_from": {
+        "run_id": 37128615856,
+        "attempt": 1,
+        "event": "workflow_dispatch",
+        "head_sha": "483609e8e592c8caa02a35e91bb0bd55ee3467d4",
+        "artifact_id": 11275896692,
+        "artifact_digest": "sha256:3db22e31fb2987f9cbd2f80cdce156747475182fc3ea5b3475d4acce04fd3050",
+        "harness_run_id": "ci-37128501642-1",
+        "budget_usage": {
+          "model_attempts": 7,
+          "tool_attempts": 11,
+          "unknown_usage_calls": 0,
+          "known_usage": {
+            "input_tokens": 28537,
+            "output_tokens": 1285,
+            "total_tokens": 29822
+          },
+          "scope": "review and summary attempts, plus verifier when attached; provider internal retries may be unreported"
+        }
+      }
+    }
+  },
+  "checks": {
+    "primary_reused_without_calls": true,
+    "verification_resumed_in_new_job": true,
+    "only_verification_added_attempts": {
+      "model": 3,
+      "tool": 4
+    },
+    "completed_recovery_added_model_attempts": 0,
+    "completed_recovery_added_tool_attempts": 0,
+    "completed_receipts_equal": true,
+    "frozen_memory_equal": true,
+    "primary_context_requests_equal": true,
+    "verification_context_requests_equal": true,
+    "state_member_digests_checked": true,
+    "credential_scan_files": 47
+  },
+  "stages": {
+    "review": {
+      "request_count": 4,
+      "fragment_count": 3,
+      "fragment_index_sha256": "4f889d6bfc0bc1c327c4318bc6a4614895ee944598f30e9afe0dd4b87aef9375",
+      "prefix_and_source_digests_rebuilt": true
+    },
+    "verification": {
+      "request_count": 3,
+      "fragment_count": 1,
+      "fragment_index_sha256": "fdf53d9d559936e5ce4db17379d20c7597341f7ae83c6cad5d048bebb45b7855",
+      "prefix_and_source_digests_rebuilt": true
+    }
+  },
+  "findings": [
+    {
+      "path": "examples/harness_auto_preview.py",
+      "line": 6,
+      "severity": "P3",
+      "title": "mean_chunk_score raises ZeroDivisionError on empty input despite docstring promising 0.0",
+      "explanation": "The new fixture declares in its docstring (line 5) that \"an empty list should produce 0.0\", but the implementation on line 6 is `return sum(scores) / len(scores)`. For an empty list, `sum([])` is 0 and `len([])` is 0, so the division raises `ZeroDivisionError` instead of returning 0.0. The declared empty-input contract and the implementation disagree. This matches the accepted maintainer guidance for examples/**/*.py: verify that a function's declared empty-input behavior matches its implementation. The function is a standalone fixture with no repository callers (search_code for `mean_chunk_score` returns only its own definition), so the impact is confined to the fixture's own documented contract rather than production call paths; severity is therefore low. The file compiles cleanly (check-001), so this is a runtime contract defect, not a syntax issue.",
+      "trigger": "Call `mean_chunk_score([])` (the empty-list case the docstring explicitly describes). Expected per docstring: returns 0.0. Actual: raises `ZeroDivisionError: division by zero` at line 6.",
+      "evidence_ids": [
+        "check-001"
+      ],
+      "confidence": "high",
+      "id": "finding-2f4f086bcaf8f32e"
+    }
+  ],
+  "verdicts": [
+    {
+      "finding_index": 1,
+      "verdict": "supported",
+      "reason": "Head lines 5-6 confirm the docstring promises 0.0 for an empty list while the body is `sum(scores) / len(scores)`, which raises ZeroDivisionError for []. File is new at head (absent at base), so the defect is introduced by this diff. Trigger is deterministic and matches the code; severity P3 is reasonable given no production callers."
+    }
+  ],
+  "remote_after": {
+    "draft": true,
+    "merged": false,
+    "counts": {
+      "reviews": 0,
+      "inline-comments": 0,
+      "issue-comments": 0
+    }
+  },
+  "artifacts": {
+    "paused": {
+      "checkpoint_sha256": "607061fe69a3469a0bb9bec575e1365b50f46ccb9b03ba4dc31267023a236f96",
+      "log_sha256": "cb02c0bf4087f0f560d7f1196f31a17bc35170ebde1af560d1f5c7d210c9fe74"
+    },
+    "recovered": {
+      "checkpoint_sha256": "1aef21ef3dbe093471fdecf1719432adb3bc5caff77d49ca100a4dcb80bb4ac4",
+      "log_sha256": "0d032fdf30af01fb56852a82eacce3d5ca72de63ffd4c61f586612f3ceb1c352"
+    },
+    "completed": {
+      "checkpoint_sha256": "6a7a284c672ea9478ff5942ac338d7a6fc48b47ed3f4760cca0b822247d6b0f8",
+      "log_sha256": "fedee386e07f9b2273a2d4d8636d3b4b6a20326898c82c0a86f2a9284923ed1f"
+    }
+  },
+  "limitations": [
+    "Cloud uses a controlled pause after primary review; in-flight model/tool failures are exercised offline",
+    "No PR tests, publication, incremental mode or cross-job check cache",
+    "No guarantee after hard runner loss or missing/expired artifacts",
+    "Same absolute workspace and compatible pinned runtime required",
+    "No accuracy, cost saving or production SLA claim"
+  ],
+  "local_raw_path": "outputs/cloud-recovery/",
+  "local_tests": {
+    "full_passed": 311,
+    "full_seconds": 140.01,
+    "docker_enabled": true,
+    "cloud_recovery_passed": 35,
+    "ruff": "passed",
+    "actionlint": "passed on exact proposal"
+  },
+  "rerun_discovery": {
+    "actions_run_id": 37128096558,
+    "attempt": 2,
+    "url": "https://github.com/Bin-poco/PharosRAG/actions/runs/37128096558/attempts/2",
+    "conclusion": "failure",
+    "error": "No unique saved checkpoint exists for this Actions attempt",
+    "previous_attempt_state_artifact_absent_after_rerun": true,
+    "correction": "Require a new workflow_dispatch with an explicit source run; reject Re-run"
+  }
+}

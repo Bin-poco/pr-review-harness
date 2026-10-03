@@ -363,6 +363,18 @@ uv run pytest tests/test_durable_context.py::test_completed_receipt_replays_with
 
 **自检**：临时文件、图状态、执行回执各自解决什么问题？为何不能只打开 SQLite 的 channel_values 就认定所有消息或文件丢失？底座使用增量状态，需要通过图接口重建。
 
+### 7.2 云端跨 job 恢复
+
+阅读 [云端恢复设计与真实验收](CLOUD_RECOVERY.md)，对照三个运行的 `cloud-run.json`、`checkpoint-export.json`、`automation.json.restored_from` 和 `budget_usage`。源码顺序是工作流 → CLI → `cloud_state.py` → `RunStore` → LangGraph。
+
+```bash
+uv run pytest -q tests/test_cloud_state.py
+```
+
+重点跟踪 `test_cloud_model_failure_preserves_check_memory_index_and_attempts` 和 `test_cloud_verifier_receipt_replay_and_completed_recovery`：从归档恢复到同一绝对路径，删除原记忆数据库，解释为何检查不重复、已用预算不清零，核验还能接着完成。
+
+**真实发现**：直接 Re-run 曾导致上一尝试的 artifact 消失，项目因此要求新建 Run workflow 并指定来源；不能只根据本机模拟测试宣称平台支持自动恢复。面试应能解释 SQLite backup 如何包含 WAL、为什么校验可信工作流后才加载图状态、为什么强制取消后仍可能没有可恢复归档。
+
 ## 8. 核验与技能：各自承担什么
 
 阅读 [verification.py](../src/pr_review_harness/verification.py) 的 `_packet`、`_tools`、`verify_report`；再看 [skills.py](../src/pr_review_harness/skills.py) 与两个审查技能文件。
@@ -485,7 +497,7 @@ uv run --env-file .env pr-harness demo --live \
 
 最新[云端上下文与记忆升级](CLOUD_CONTEXT_UPGRADE.md)已将本机片段索引部署到业务工作流。对照该次验收摘要，区分工作流所在提交、实际 Harness 源码提交与 PR head；再核对主审查和核验各自的片段来源，以及人工规则是否出现在每次主请求中。云端运行成功与源码来源一致是工程结论，不能推出审查质量改善。
 
-[PharosRAG 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)已完成业务仓库部署与非 Draft 事件审查，可对照 PR #5、Actions 日志和结构化摘要学习跨仓库接入。已验收[跨 job 人工反馈读取](CLOUD_MEMORY.md)；本机增量调度与语法缓存已实现；后续可继续做云端 checkpoint 恢复、队列与跨 job 缓存。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
+[PharosRAG 自动预览验收](PHAROS_CLOUD_ACCEPTANCE.md)已完成业务仓库部署与非 Draft 事件审查，可对照 PR #5、Actions 日志和结构化摘要学习跨仓库接入。已验收[跨 job 人工反馈读取](CLOUD_MEMORY.md)；本机增量调度与语法缓存已实现；[云端状态恢复](CLOUD_RECOVERY.md)已验收；后续可继续做队列与跨 job 缓存。记忆效果需要历史 PR 到后续 PR 的数据序列验证。自动写经验、自进化和多模型编排均不在当前实现范围内。
 
 ### 10.3 执行隔离与自动事件
 
@@ -503,7 +515,7 @@ uv run --env-file .env pr-harness demo --live \
 
 按“场景 → 流程 → 自己的设计 → 真实发现 → 下一步”组织：
 
-> 项目面向 Python 仓库的 PR 审查。我基于 Deep Agents 实现固定版本输入、相关代码选择、双版本检查和结构化报告。重点做了统一上下文预算、工具事实状态、带来源和生命周期的人工反馈，以及 checkpoint 和执行回执。根据公开 PR 试跑中的提交故障加入预算内限次修复，并接入 GitHub 获取、发布预览、版本校验和重复检查；进一步实现固定镜像的 Docker 测试执行和经过版本校验的自动事件入口。原失败三例重放均有效提交，两例观察到截断后修复，真实测试 PR 已完成发布联调。已完成真实 DeepSeek 云端手动预览，并在 PharosRAG 部署固定版本的工作流、通过非 Draft PR 事件完成自动审查及独立核验，自动发布保持关闭。已通过两次独立云端运行验收默认分支版本化人工反馈的跨 job 读取。审查质量还需人工复核，云端 checkpoint 恢复仍待完成。
+> 项目面向 Python 仓库的 PR 审查。我基于 Deep Agents 实现固定版本输入、相关代码选择、双版本检查和结构化报告。重点做了统一上下文预算、工具事实状态、带来源和生命周期的人工反馈，以及 checkpoint 和执行回执。根据公开 PR 试跑中的提交故障加入预算内限次修复，并接入 GitHub 获取、发布预览、版本校验和重复检查；进一步实现固定镜像的 Docker 测试执行和经过版本校验的自动事件入口。原失败三例重放均有效提交，两例观察到截断后修复，真实测试 PR 已完成发布联调。已完成真实 DeepSeek 云端手动预览，并在 PharosRAG 部署固定版本的工作流、通过非 Draft PR 事件完成自动审查及独立核验，自动发布保持关闭。已通过两次独立云端运行验收默认分支版本化人工反馈的跨 job 读取。进一步完成可信云端状态归档，主审查暂停后跨 job 继续核验，完整结果再次恢复不新增模型或工具调用。实际 Re-run 导致 artifact 消失后，改为新建运行并明确来源。审查质量还需人工复核，跨 job 检查缓存仍待完成。
 
 这是学习后的讲解模板。亲自完成阅读和练习，再用自己的语言说明承担的设计与改造；SDK 提供的循环、摘要、技能加载和图存储要说清来源。
 
@@ -518,13 +530,14 @@ uv run --env-file .env pr-harness demo --live \
 | 为什么要完整请求预算？ | 系统、schema、历史与工具结果都占窗口 |
 | 为什么摘要之后还要账本？ | 精确事实从工具重建，避免全靠自然语言摘要保留 |
 | checkpoint 为什么不够？ | 工具执行完但图未提交的中断窗口，需要回执 |
+| 云端恢复为何要新建运行？ | 实际 Re-run 删除旧 artifact；新运行明确来源并核对工作流、SHA、模型与预算 |
 | 如何避免旧结果用于新 PR？ | 固定 SHA、恢复身份与发布前 base/head 校验；说明检查到 POST 的竞态 |
 | 如何防止重复发布？ | 本地锁/回执、按快照生成的远程标记、当前发布者与提交确认；跨机器并发边界 |
 | 如何证明模型更好了？ | 受控对照、根因复核、分组案例与清楚的失败统计 |
 | 为什么临时目录不够？ | 不能限制宿主文件/网络/进程；Docker 加权限、挂载、网络和资源限制；说明共享内核边界 |
 | 宿主被杀后如何限制测试？ | 容器内可信 PID 1 的截止时间，不只依赖宿主 finally |
 | 自动流程如何选择版本？ | 校验事件仓库与 base/head，再校验获取和发布；只运行可信 Harness 源码 |
-| 当前最明显的问题？ | 遗漏和未确认误报、云端 checkpoint 尚不跨 job 恢复、尚未验证记忆质量收益 |
+| 当前最明显的问题？ | 遗漏和未确认误报、云端恢复仅预览且依赖有效 artifact、尚未验证记忆质量收益 |
 
 ## 12. 源码导航与学习笔记
 
